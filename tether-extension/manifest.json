@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Tether",
+  "version": "1.0.1",
+  "description": "Sync your active Chrome tab to the Tether mobile app",
+  "permissions": ["tabs", "storage", "windows"],
+  "host_permissions": ["https://*.supabase.co/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tether"
+  }
+}
