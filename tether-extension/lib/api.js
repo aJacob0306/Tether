@@ -1,6 +1,7 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../config.js";
 
 const SESSION_KEY = "tether_session";
+const REFRESH_BUFFER_SECONDS = 60;
 
 const IGNORED_URL_PREFIXES = ["chrome://", "chrome-extension://", "edge://", "about:"];
 
@@ -10,6 +11,42 @@ function assertConfig() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     throw new Error("Add Supabase credentials to config.js first.");
   }
+}
+
+function normalizeSession(data) {
+  if (data.expires_in && !data.expires_at) {
+    data.expires_at = Math.floor(Date.now() / 1000) + data.expires_in;
+  }
+  return data;
+}
+
+function isSessionExpired(session) {
+  if (!session?.expires_at) return Boolean(session?.refresh_token);
+  return Date.now() / 1000 >= session.expires_at - REFRESH_BUFFER_SECONDS;
+}
+
+async function readError(response) {
+  const errorText = await response.text();
+  if (!errorText) return { message: `Sync failed (${response.status})` };
+
+  try {
+    const errorJson = JSON.parse(errorText);
+    return {
+      code: errorJson.code,
+      message: errorJson.message || errorJson.error_description || errorJson.msg || errorText,
+      raw: errorText,
+    };
+  } catch {
+    return { message: errorText, raw: errorText };
+  }
+}
+
+function isExpiredJwtError(response, error) {
+  return (
+    response.status === 401 ||
+    error.code === "PGRST303" ||
+    error.message?.toLowerCase().includes("jwt expired")
+  );
 }
 
 function authHeaders(accessToken) {
@@ -41,6 +78,48 @@ export async function getSession() {
   return result[SESSION_KEY] ?? null;
 }
 
+async function saveSession(session) {
+  await chrome.storage.local.set({ [SESSION_KEY]: session });
+}
+
+export async function refreshSession(session) {
+  assertConfig();
+
+  if (!session?.refresh_token) {
+    throw new Error("Session expired. Open the extension popup and sign in again.");
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    await signOut();
+    throw new Error(data.error_description || data.msg || "Session expired. Sign in again.");
+  }
+
+  const nextSession = normalizeSession(data);
+  await saveSession(nextSession);
+  return nextSession;
+}
+
+export async function getValidSession() {
+  let session = await getSession();
+  if (!session?.access_token) return null;
+
+  if (isSessionExpired(session)) {
+    session = await refreshSession(session);
+  }
+
+  return session;
+}
+
 export async function signIn(email, password) {
   assertConfig();
 
@@ -58,8 +137,9 @@ export async function signIn(email, password) {
     throw new Error(data.error_description || data.msg || "Sign in failed");
   }
 
-  await chrome.storage.local.set({ [SESSION_KEY]: data });
-  return data;
+  const session = normalizeSession(data);
+  await saveSession(session);
+  return session;
 }
 
 export async function signOut() {
@@ -69,17 +149,16 @@ export async function signOut() {
 export async function upsertActiveTab({ url, title }) {
   assertConfig();
 
-  const session = await getSession();
+  let session = await getValidSession();
   if (!session?.access_token || !session?.user?.id) {
     throw new Error("Not signed in. Open the extension popup and sign in first.");
   }
 
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/active_tabs?on_conflict=user_id`,
-    {
+  async function send(accessToken) {
+    return fetch(`${SUPABASE_URL}/rest/v1/active_tabs?on_conflict=user_id`, {
       method: "POST",
       headers: {
-        ...authHeaders(session.access_token),
+        ...authHeaders(accessToken),
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
       body: JSON.stringify({
@@ -87,12 +166,20 @@ export async function upsertActiveTab({ url, title }) {
         url,
         title,
       }),
-    },
-  );
+    });
+  }
+
+  let response = await send(session.access_token);
+  let error = response.ok ? null : await readError(response);
+
+  if (error && isExpiredJwtError(response, error) && session.refresh_token) {
+    session = await refreshSession(session);
+    response = await send(session.access_token);
+    error = response.ok ? null : await readError(response);
+  }
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `Sync failed (${response.status})`);
+    throw new Error(error?.raw || error?.message || `Sync failed (${response.status})`);
   }
 }
 

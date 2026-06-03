@@ -17,6 +17,35 @@ export type ActiveTab = {
   updated_at: string;
 };
 
+export type Profile = {
+  id: string;
+  display_name: string;
+  created_at: string;
+};
+
+export type Tether = {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type TetherMember = {
+  tether_id: string;
+  user_id: string;
+  joined_at: string;
+};
+
+export type WorkStatus = "working" | "idle" | "offline";
+
+export type MemberActivity = {
+  user_id: string;
+  display_name: string;
+  activeTab: ActiveTab | null;
+  status: WorkStatus;
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
