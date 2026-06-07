@@ -1,0 +1,7 @@
+{
+  "name": "tether",
+  "private": true,
+  "scripts": {
+    "start": "npm start --prefix tether-mobile"
+  }
+}
