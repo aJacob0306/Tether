@@ -1,14 +1,34 @@
-import { isTrackableUrl, syncCurrentTab } from "./lib/api.js";
+import { getActiveBrowserTab, isTrackableUrl, syncTab } from "./lib/api.js";
+import {
+  closeIdleWorkSessionIfNeeded,
+  closeOpenWorkSession,
+  syncWorkSession,
+} from "./lib/sessions.js";
+
+const IDLE_CHECK_ALARM = "tether-idle-check";
 
 async function syncActiveTab() {
   try {
-    const tab = await syncCurrentTab();
-    console.log("[Tether] Synced:", tab.title, tab.url);
+    const tab = await getActiveBrowserTab();
+    if (!tab?.url) {
+      throw new Error("No active tab found.");
+    }
+
+    if (isTrackableUrl(tab.url)) {
+      await syncTab(tab);
+      console.log("[Tether] Synced:", tab.title, tab.url);
+    }
+
+    await syncWorkSession(tab);
     return tab;
   } catch (error) {
     console.log("[Tether] Sync skipped:", error.message);
     throw error;
   }
+}
+
+function setupIdleAlarm() {
+  chrome.alarms.create(IDLE_CHECK_ALARM, { periodInMinutes: 2 });
 }
 
 chrome.tabs.onActivated.addListener(() => {
@@ -19,21 +39,32 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (!changeInfo.url && !changeInfo.title) return;
 
   chrome.tabs.get(tabId, (tab) => {
-    if (chrome.runtime.lastError || !tab.active || !isTrackableUrl(tab.url)) return;
+    if (chrome.runtime.lastError || !tab.active) return;
     syncActiveTab().catch(() => {});
   });
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
-  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    closeOpenWorkSession().catch(() => {});
+    return;
+  }
+
   syncActiveTab().catch(() => {});
 });
 
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== IDLE_CHECK_ALARM) return;
+  closeIdleWorkSessionIfNeeded().catch(() => {});
+});
+
 chrome.runtime.onStartup.addListener(() => {
+  setupIdleAlarm();
   syncActiveTab().catch(() => {});
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+  setupIdleAlarm();
   syncActiveTab().catch(() => {});
 });
 

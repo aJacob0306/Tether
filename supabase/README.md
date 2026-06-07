@@ -29,5 +29,6 @@ supabase db push
 | `004_fix_tether_members_rls.sql` | Fix infinite recursion in `tether_members` RLS policies |
 | `005_backfill_profiles.sql` | Create missing `profiles` rows for existing/manual auth users |
 | `006_tether_board_rpc.sql` | Secure board loader that returns member names and active tabs for a tether |
+| `007_work_sessions.sql` | Per-domain work sessions for focus time and top-site stats |
 
 Apply migrations in order. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.

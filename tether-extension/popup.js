@@ -1,4 +1,13 @@
-import { getSession, signIn, signOut, syncCurrentTab } from "./lib/api.js";
+import {
+  checkSupabaseReachable,
+  getActiveBrowserTab,
+  getSession,
+  isTrackableUrl,
+  signIn,
+  signOut,
+  syncTab,
+} from "./lib/api.js";
+import { closeOpenWorkSession, syncWorkSession } from "./lib/sessions.js";
 
 const signedOutView = document.getElementById("signed-out-view");
 const signedInView = document.getElementById("signed-in-view");
@@ -29,12 +38,29 @@ function showSignedOut() {
 }
 
 async function runSync() {
-  const tab = await syncCurrentTab();
+  const tab = await getActiveBrowserTab();
+  if (!tab?.url) {
+    throw new Error("No active tab found.");
+  }
+
+  if (isTrackableUrl(tab.url)) {
+    await syncTab(tab);
+  }
+
+  await syncWorkSession(tab);
   return { title: tab.title ?? "", url: tab.url ?? "" };
 }
 
 async function init() {
   try {
+    const reachable = await checkSupabaseReachable();
+    if (!reachable) {
+      setStatus(
+        "Cannot reach Supabase. Check config.js URL/key (Dashboard → Project Settings → API) and that the project is active.",
+        true,
+      );
+    }
+
     const session = await getSession();
     if (session?.user?.email) {
       showSignedIn(session.user.email);
@@ -78,6 +104,7 @@ signInBtn.addEventListener("click", async () => {
 });
 
 signOutBtn.addEventListener("click", async () => {
+  await closeOpenWorkSession().catch(() => {});
   await signOut();
   showSignedOut();
 });

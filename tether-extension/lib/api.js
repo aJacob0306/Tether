@@ -1,4 +1,10 @@
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../config.js";
+import {
+  SUPABASE_ANON_KEY as RAW_SUPABASE_ANON_KEY,
+  SUPABASE_URL as RAW_SUPABASE_URL,
+} from "../config.js";
+
+const SUPABASE_URL = RAW_SUPABASE_URL?.trim().replace(/\/$/, "") ?? "";
+const SUPABASE_ANON_KEY = RAW_SUPABASE_ANON_KEY?.trim() ?? "";
 
 const SESSION_KEY = "tether_session";
 const REFRESH_BUFFER_SECONDS = 60;
@@ -10,6 +16,19 @@ const IGNORED_HOST_SUFFIXES = ["supabase.co", "supabase.com"];
 function assertConfig() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     throw new Error("Add Supabase credentials to config.js first.");
+  }
+
+  if (!SUPABASE_URL.startsWith("https://") || !SUPABASE_URL.includes("supabase.")) {
+    throw new Error("SUPABASE_URL in config.js must look like https://your-ref.supabase.co");
+  }
+
+  if (
+    !SUPABASE_ANON_KEY.startsWith("sb_publishable_") &&
+    !SUPABASE_ANON_KEY.startsWith("eyJ")
+  ) {
+    throw new Error(
+      "SUPABASE_ANON_KEY looks wrong. Copy the publishable (anon) key from Supabase → Project Settings → API. It should start with sb_publishable_ or eyJ.",
+    );
   }
 }
 
@@ -54,7 +73,61 @@ function authHeaders(accessToken) {
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
+    "X-Supabase-Api-Version": "2024-01-01",
   };
+}
+
+function anonAuthHeaders() {
+  return authHeaders(SUPABASE_ANON_KEY);
+}
+
+function networkErrorMessage() {
+  return `Could not reach Supabase at ${SUPABASE_URL}. Check config.js (Project Settings → API), your internet connection, and that the project is not paused.`;
+}
+
+export async function checkSupabaseReachable() {
+  assertConfig();
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function authedRestRequest(send) {
+  assertConfig();
+
+  let session = await getValidSession();
+  if (!session?.access_token || !session?.user?.id) {
+    throw new Error("Not signed in. Open the extension popup and sign in first.");
+  }
+
+  let response = await send(session);
+  let error = response.ok ? null : await readError(response);
+
+  if (error && isExpiredJwtError(response, error) && session.refresh_token) {
+    session = await refreshSession(session);
+    response = await send(session);
+    error = response.ok ? null : await readError(response);
+  }
+
+  if (!response.ok) {
+    throw new Error(error?.raw || error?.message || `Request failed (${response.status})`);
+  }
+
+  return { session, response };
+}
+
+export function parseDomain(url) {
+  if (!url) return null;
+
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
 }
 
 export function isTrackableUrl(url) {
@@ -89,16 +162,23 @@ export async function refreshSession(session) {
     throw new Error("Session expired. Open the extension popup and sign in again.");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refresh_token: session.refresh_token }),
-  });
+  let response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: anonAuthHeaders(),
+      body: JSON.stringify({ refresh_token: session.refresh_token }),
+    });
+  } catch {
+    throw new Error(networkErrorMessage());
+  }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Unexpected response from Supabase while refreshing session.");
+  }
   if (!response.ok) {
     await signOut();
     throw new Error(data.error_description || data.msg || "Session expired. Sign in again.");
@@ -123,16 +203,24 @@ export async function getValidSession() {
 export async function signIn(email, password) {
   assertConfig();
 
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
+  let response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: anonAuthHeaders(),
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new Error(networkErrorMessage());
+  }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Unexpected response from Supabase while signing in.");
+  }
+
   if (!response.ok) {
     throw new Error(data.error_description || data.msg || "Sign in failed");
   }
@@ -181,6 +269,67 @@ export async function upsertActiveTab({ url, title }) {
   if (!response.ok) {
     throw new Error(error?.raw || error?.message || `Sync failed (${response.status})`);
   }
+}
+
+export async function getOpenWorkSession() {
+  const { session, response } = await authedRestRequest((authSession) =>
+    fetch(
+      `${SUPABASE_URL}/rest/v1/work_sessions?user_id=eq.${authSession.user.id}&ended_at=is.null&select=id,domain,url,title,started_at,ended_at&limit=1`,
+      { headers: authHeaders(authSession.access_token) },
+    ),
+  );
+
+  const rows = await response.json();
+  return rows[0] ?? null;
+}
+
+export async function startWorkSession({ domain, url, title }) {
+  const { session, response } = await authedRestRequest((authSession) =>
+    fetch(`${SUPABASE_URL}/rest/v1/work_sessions`, {
+      method: "POST",
+      headers: {
+        ...authHeaders(authSession.access_token),
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        user_id: authSession.user.id,
+        domain,
+        url,
+        title,
+      }),
+    }),
+  );
+
+  const rows = await response.json();
+  return rows[0] ?? null;
+}
+
+export async function closeWorkSession(sessionId, endedAt) {
+  const ended_at = endedAt ?? new Date().toISOString();
+
+  await authedRestRequest((authSession) =>
+    fetch(`${SUPABASE_URL}/rest/v1/work_sessions?id=eq.${encodeURIComponent(sessionId)}`, {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(authSession.access_token),
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ ended_at }),
+    }),
+  );
+}
+
+export async function updateWorkSessionTab(sessionId, { url, title }) {
+  await authedRestRequest((authSession) =>
+    fetch(`${SUPABASE_URL}/rest/v1/work_sessions?id=eq.${encodeURIComponent(sessionId)}`, {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(authSession.access_token),
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ url, title }),
+    }),
+  );
 }
 
 export async function getActiveBrowserTab() {
