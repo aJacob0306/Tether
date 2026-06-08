@@ -35,5 +35,6 @@ supabase db push
 | `010_work_sessions_updated_at.sql` | Adds `work_sessions.updated_at` freshness tracking and updates the board RPC |
 | `011_tether_daily_work_total.sql` | Adds daily per-member work-time aggregation for the board timer |
 | `012_tether_daily_member_logs.sql` | Adds per-member daily totals and top domains for the detailed log |
+| `013_tether_allowed_targets.sql` | Creator-defined allowlist of apps and domains; `get_my_allowed_targets` RPC for extension |
 
 Apply migrations in order. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.

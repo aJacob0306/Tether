@@ -73,6 +73,16 @@ export type DailyMemberLog = {
   topDomains: DailyTopDomain[];
 };
 
+export type AllowedTargetType = "app" | "domain";
+
+export type AllowedTarget = {
+  id: string;
+  tether_id: string;
+  target_type: AllowedTargetType;
+  value: string;
+  created_at: string;
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,

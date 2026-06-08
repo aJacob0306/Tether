@@ -1,5 +1,6 @@
-import { getActiveBrowserTab, isTrackableUrl, syncTab } from "./api.js";
-import { syncWorkSession } from "./sessions.js";
+import { getAllowlist, urlMatchesAllowlist } from "./allowlist.js";
+import { clearActiveTab, getActiveBrowserTab, isTrackableUrl, syncTab } from "./api.js";
+import { closeOpenWorkSession, syncWorkSession } from "./sessions.js";
 
 let activeSyncPromise = null;
 
@@ -10,15 +11,28 @@ async function syncActiveTabOnce() {
   }
 
   const trackable = isTrackableUrl(tab.url);
-  if (trackable) {
-    await syncTab(tab);
-  }
+  const allowlist = await getAllowlist();
+  const hasAllowlist = allowlist.domains.length > 0;
+  const allowed = trackable && hasAllowlist && urlMatchesAllowlist(tab.url, allowlist.domains);
+  let synced = false;
 
-  await syncWorkSession(tab);
+  if (allowed) {
+    await syncTab(tab);
+    await syncWorkSession(tab);
+    synced = true;
+  } else {
+    await Promise.all([
+      closeOpenWorkSession().catch(() => {}),
+      clearActiveTab().catch(() => {}),
+    ]);
+  }
 
   return {
     tab,
     trackable,
+    allowed,
+    hasAllowlist,
+    synced,
     title: tab.title ?? "",
     url: tab.url ?? "",
   };

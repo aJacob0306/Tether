@@ -21,6 +21,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       return "Detailed log not set up. Run supabase/migrations/012_tether_daily_member_logs.sql in Supabase.";
     }
 
+    if (message.includes("tether_allowed_targets") || message.includes("get_my_allowed_targets")) {
+      return "Allowlist not set up. Run supabase/migrations/013_tether_allowed_targets.sql in Supabase.";
+    }
+
     if (message.includes("work_sessions")) {
       return "Work sessions not set up. Run supabase/migrations/007_work_sessions.sql and 008_tether_board_sessions.sql in Supabase.";
     }

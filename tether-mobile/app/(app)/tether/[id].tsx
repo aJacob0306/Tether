@@ -9,16 +9,19 @@ import {
   Text,
   View,
 } from "react-native";
+import { AllowlistPanel } from "../../../components/AllowlistPanel";
 import { MemberCard } from "../../../components/MemberCard";
 import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { DetailedLog } from "../../../components/DetailedLog";
 import { appStyles } from "../../../constants/styles";
+import { useAuth } from "../../../contexts/AuthContext";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
 
-type TetherTab = "home" | "log";
+type TetherTab = "home" | "rules" | "log";
 
 export default function TetherBoardScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     tether,
@@ -33,6 +36,7 @@ export default function TetherBoardScreen() {
   } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TetherTab>("home");
+  const isCreator = Boolean(tether && session?.user.id === tether.created_by);
 
   async function handleCopyInviteCode() {
     if (!tether?.invite_code) return;
@@ -87,6 +91,8 @@ export default function TetherBoardScreen() {
                 renderItem={({ item }) => <MemberCard member={item} />}
               />
             </>
+          ) : activeTab === "rules" ? (
+            <AllowlistPanel tetherId={tether.id} isCreator={isCreator} />
           ) : (
             <DetailedLog
               logs={dailyMemberLogs}
@@ -136,6 +142,31 @@ export default function TetherBoardScreen() {
             <Pressable
               style={[
                 appStyles.tetherTabButton,
+                activeTab === "rules" && appStyles.tetherTabButtonActive,
+              ]}
+              onPress={() => setActiveTab("rules")}
+            >
+              <Text
+                style={[
+                  appStyles.tetherTabIcon,
+                  activeTab === "rules" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                R
+              </Text>
+              <Text
+                style={[
+                  appStyles.tetherTabLabel,
+                  activeTab === "rules" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                Rules
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                appStyles.tetherTabButton,
                 activeTab === "log" && appStyles.tetherTabButtonActive,
               ]}
               onPress={() => setActiveTab("log")}
@@ -154,7 +185,7 @@ export default function TetherBoardScreen() {
                   activeTab === "log" && appStyles.tetherTabTextActive,
                 ]}
               >
-                Detailed Log
+                Log
               </Text>
             </Pressable>
           </View>

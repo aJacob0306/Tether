@@ -1,3 +1,4 @@
+import { clearAllowlistCache, getAllowlist, refreshAllowlist } from "./lib/allowlist.js";
 import {
   checkSupabaseReachable,
   getSession,
@@ -21,11 +22,34 @@ function setStatus(message, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
+async function loadAllowlistStatus() {
+  try {
+    const allowlist = await getAllowlist();
+    const domainCount = allowlist.domains.length;
+    const appCount = allowlist.apps.length;
+
+    if (!domainCount && !appCount) {
+      setStatus(
+        "No allowlist yet. Add allowed websites in the mobile app under Rules.",
+        true,
+      );
+      return;
+    }
+
+    const parts = [];
+    if (domainCount) parts.push(`${domainCount} website${domainCount === 1 ? "" : "s"}`);
+    if (appCount) parts.push(`${appCount} app${appCount === 1 ? "" : "s"}`);
+    setStatus(`Allowlist loaded: ${parts.join(", ")}. Only matching tabs sync.`);
+  } catch (error) {
+    setStatus(`Could not load allowlist: ${error.message}`, true);
+  }
+}
+
 function showSignedIn(email) {
   signedOutView.style.display = "none";
   signedInView.style.display = "block";
   userEmail.textContent = email;
-  setStatus("Active tab sync is running.");
+  loadAllowlistStatus();
 }
 
 function showSignedOut() {
@@ -75,8 +99,17 @@ signInBtn.addEventListener("click", async () => {
     showSignedIn(session.user.email);
 
     try {
+      await refreshAllowlist({ force: true });
       const result = await syncActiveTab();
-      setStatus(`Synced: ${result.title || result.url}`);
+      if (result.synced) {
+        setStatus(`Synced: ${result.title || result.url}`);
+      } else if (!result.hasAllowlist) {
+        setStatus("Signed in. Add allowed websites in the mobile app under Rules.", true);
+      } else if (!result.allowed) {
+        setStatus("This tab is not on your tether allowlist.", true);
+      } else {
+        setStatus("This tab cannot be synced.", true);
+      }
     } catch (syncError) {
       setStatus(`Signed in, but sync failed: ${syncError.message}`, true);
     }
@@ -89,6 +122,7 @@ signInBtn.addEventListener("click", async () => {
 
 signOutBtn.addEventListener("click", async () => {
   await closeOpenWorkSession().catch(() => {});
+  await clearAllowlistCache();
   await signOut();
   showSignedOut();
 });
@@ -99,8 +133,17 @@ document.getElementById("sync-now-btn").addEventListener("click", async () => {
   setStatus("Syncing...");
 
   try {
+    await refreshAllowlist({ force: true });
     const result = await syncActiveTab();
-    setStatus(`Synced: ${result.title || result.url}`);
+    if (result.synced) {
+      setStatus(`Synced: ${result.title || result.url}`);
+    } else if (!result.hasAllowlist) {
+      setStatus("Add allowed websites in the mobile app under Rules.", true);
+    } else if (!result.allowed) {
+      setStatus("This tab is not on your tether allowlist.", true);
+    } else {
+      setStatus("This tab cannot be synced.", true);
+    }
   } catch (error) {
     setStatus(error.message, true);
   } finally {

@@ -386,4 +386,107 @@ export const appStyles = StyleSheet.create({
   tetherTabTextActive: {
     color: "#fff",
   },
+  allowlistPanel: {
+    flex: 1,
+  },
+  allowlistTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 8,
+  },
+  allowlistDescription: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  allowlistList: {
+    flex: 1,
+  },
+  allowlistListContent: {
+    paddingBottom: 16,
+    gap: 10,
+  },
+  allowlistRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: "#fafafa",
+  },
+  allowlistRowText: {
+    flex: 1,
+  },
+  allowlistTypeBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#666",
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  allowlistValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111",
+  },
+  allowlistRemoveButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  allowlistRemoveText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#b00020",
+  },
+  allowlistForm: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5e5",
+    paddingTop: 16,
+    marginTop: 8,
+  },
+  allowlistFormLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#111",
+    marginBottom: 10,
+  },
+  allowlistTypeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  allowlistTypeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  allowlistTypeButtonActive: {
+    backgroundColor: "#111",
+    borderColor: "#111",
+  },
+  allowlistTypeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+  allowlistTypeButtonTextActive: {
+    color: "#fff",
+  },
+  allowlistInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginBottom: 12,
+    color: "#111",
+  },
 });

@@ -1,8 +1,10 @@
+import { refreshAllowlist } from "./lib/allowlist.js";
 import { closeIdleWorkSessionIfNeeded, closeOpenWorkSession } from "./lib/sessions.js";
 import { syncActiveTab } from "./lib/sync.js";
 
 const IDLE_CHECK_ALARM = "tether-idle-check";
 const SYNC_HEARTBEAT_ALARM = "tether-sync-heartbeat";
+const ALLOWLIST_REFRESH_ALARM = "tether-allowlist-refresh";
 
 function logSyncFailure(error) {
   console.log("[Tether] Sync skipped:", error.message);
@@ -11,13 +13,18 @@ function logSyncFailure(error) {
 function setupAlarms() {
   chrome.alarms.create(IDLE_CHECK_ALARM, { periodInMinutes: 2 });
   chrome.alarms.create(SYNC_HEARTBEAT_ALARM, { periodInMinutes: 1 });
+  chrome.alarms.create(ALLOWLIST_REFRESH_ALARM, { periodInMinutes: 5 });
 }
 
 function syncAndLog() {
   syncActiveTab()
     .then((result) => {
-      if (result.trackable) {
+      if (result.synced) {
         console.log("[Tether] Synced:", result.title, result.url);
+      } else if (result.trackable && !result.hasAllowlist) {
+        console.log("[Tether] Sync skipped: no allowlist configured in mobile app.");
+      } else if (result.trackable && !result.allowed) {
+        console.log("[Tether] Sync skipped: tab not on allowlist.", result.url);
       }
     })
     .catch(logSyncFailure);
@@ -53,20 +60,27 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     return;
   }
 
+  if (alarm.name === ALLOWLIST_REFRESH_ALARM) {
+    refreshAllowlist({ force: true }).catch((error) => {
+      console.log("[Tether] Allowlist refresh failed:", error.message);
+    });
+    return;
+  }
+
   if (alarm.name === SYNC_HEARTBEAT_ALARM) {
     syncAndLog();
   }
 });
 
-chrome.runtime.onStartup.addListener(() => {
+function startup() {
   setupAlarms();
+  refreshAllowlist({ force: true }).catch(() => {});
   syncAndLog();
-});
+}
 
-chrome.runtime.onInstalled.addListener(() => {
-  setupAlarms();
-  syncAndLog();
-});
+chrome.runtime.onStartup.addListener(startup);
+
+chrome.runtime.onInstalled.addListener(startup);
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "SYNC_NOW") return;
@@ -84,4 +98,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-setupAlarms();
+startup();

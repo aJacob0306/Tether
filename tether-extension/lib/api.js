@@ -88,6 +88,15 @@ function authHeaders(accessToken) {
   };
 }
 
+export function authHeadersForSession(session) {
+  return authHeaders(session.access_token);
+}
+
+export function supabaseUrl() {
+  assertConfig();
+  return SUPABASE_URL;
+}
+
 function anonAuthHeaders() {
   return authHeaders(SUPABASE_ANON_KEY);
 }
@@ -107,7 +116,7 @@ export async function checkSupabaseReachable() {
   }
 }
 
-async function authedRestRequest(send) {
+export async function authedRestRequest(send) {
   assertConfig();
 
   let session = await getValidSession();
@@ -291,6 +300,17 @@ export async function upsertActiveTab({ url, title }) {
   if (!response.ok) {
     throw new Error(error?.raw || error?.message || `Sync failed (${response.status})`);
   }
+}
+
+export async function clearActiveTab() {
+  const { session } = await authedRestRequest((authSession) =>
+    fetch(`${SUPABASE_URL}/rest/v1/active_tabs?user_id=eq.${authSession.user.id}`, {
+      method: "DELETE",
+      headers: authHeaders(authSession.access_token),
+    }),
+  );
+
+  return session;
 }
 
 export async function getOpenWorkSession() {

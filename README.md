@@ -16,7 +16,8 @@ Peer accountability app — stay focused together by making work activity visibl
 2. Configure the mobile app: copy `tether-mobile/.env.example` to `.env` and add your Supabase URL and anon key.
 3. Configure the extension: copy `tether-extension/config.example.js` to `config.js` — see [`tether-extension/README.md`](tether-extension/README.md).
 4. Sign up in the mobile app, create a tether, and share the invite code with your group.
-5. Each member signs into the Chrome extension with the same account so tabs sync to the group board.
+5. As the tether creator, open **Rules** and add allowed websites (e.g. `github.com`).
+6. Each member signs into the Chrome extension with the same account. Only allowlisted sites sync.
 
 ```bash
 cd tether-mobile && npm install && npm start
@@ -26,4 +27,5 @@ cd tether-mobile && npm install && npm start
 
 1. **Create tether** — pick a name, get an invite code
 2. **Join tether** — enter a friend's invite code
-3. **Open the board** — see each member's status (Working / Idle / Offline) and current tab title, updating live
+3. **Set rules** — creator adds allowed apps and websites for the project
+4. **Open the board** — see each member's status when they're on an allowed target
