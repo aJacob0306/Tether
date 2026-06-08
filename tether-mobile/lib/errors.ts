@@ -9,6 +9,18 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       return "Database not set up. Run supabase/migrations/002_tethers.sql in the Supabase SQL Editor.";
     }
 
+    if (message.includes("get_tether_board") && message.includes("session_started_at")) {
+      return "Board API out of date. Run supabase/migrations/008_tether_board_sessions.sql in Supabase.";
+    }
+
+    if (message.includes("get_tether_daily_work_total")) {
+      return "Daily work timer not set up. Run supabase/migrations/011_tether_daily_work_total.sql in Supabase.";
+    }
+
+    if (message.includes("work_sessions")) {
+      return "Work sessions not set up. Run supabase/migrations/007_work_sessions.sql and 008_tether_board_sessions.sql in Supabase.";
+    }
+
     if (message.includes("row-level security") || message.includes("permission denied")) {
       return `${message} If this persists, run 003_tether_creator_select.sql in Supabase.`;
     }

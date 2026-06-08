@@ -1,13 +1,11 @@
 import {
   checkSupabaseReachable,
-  getActiveBrowserTab,
   getSession,
-  isTrackableUrl,
   signIn,
   signOut,
-  syncTab,
 } from "./lib/api.js";
-import { closeOpenWorkSession, syncWorkSession } from "./lib/sessions.js";
+import { closeOpenWorkSession } from "./lib/sessions.js";
+import { syncActiveTab } from "./lib/sync.js";
 
 const signedOutView = document.getElementById("signed-out-view");
 const signedInView = document.getElementById("signed-in-view");
@@ -35,20 +33,6 @@ function showSignedOut() {
   signedInView.style.display = "none";
   userEmail.textContent = "";
   setStatus("");
-}
-
-async function runSync() {
-  const tab = await getActiveBrowserTab();
-  if (!tab?.url) {
-    throw new Error("No active tab found.");
-  }
-
-  if (isTrackableUrl(tab.url)) {
-    await syncTab(tab);
-  }
-
-  await syncWorkSession(tab);
-  return { title: tab.title ?? "", url: tab.url ?? "" };
 }
 
 async function init() {
@@ -91,7 +75,7 @@ signInBtn.addEventListener("click", async () => {
     showSignedIn(session.user.email);
 
     try {
-      const result = await runSync();
+      const result = await syncActiveTab();
       setStatus(`Synced: ${result.title || result.url}`);
     } catch (syncError) {
       setStatus(`Signed in, but sync failed: ${syncError.message}`, true);
@@ -115,7 +99,7 @@ document.getElementById("sync-now-btn").addEventListener("click", async () => {
   setStatus("Syncing...");
 
   try {
-    const result = await runSync();
+    const result = await syncActiveTab();
     setStatus(`Synced: ${result.title || result.url}`);
   } catch (error) {
     setStatus(error.message, true);

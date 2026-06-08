@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { deriveStatus } from "../lib/status";
-import { supabase, type ActiveTab, type MemberActivity, type Tether } from "../lib/supabase";
-import { fetchTether, fetchTetherBoard } from "../lib/tethers";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { deriveStatus, getLocalDayWindow, type LocalDayWindow } from "../lib/status";
+import {
+  supabase,
+  type ActiveTab,
+  type MemberActivity,
+  type OpenWorkSession,
+  type Tether,
+  type WorkSession,
+} from "../lib/supabase";
+import { fetchTether, fetchTetherBoard, fetchTetherDailyWorkTotal } from "../lib/tethers";
 
 type TetherBoardState = {
   tether: Tether | null;
@@ -9,7 +16,34 @@ type TetherBoardState = {
   loading: boolean;
   refreshing: boolean;
   error: string;
+  dailyWorkMs: number;
+  localDayWindow: LocalDayWindow;
 };
+
+function openSessionFromRow(row: WorkSession | null | undefined): OpenWorkSession | null {
+  if (!row || row.ended_at) return null;
+
+  return {
+    started_at: row.started_at,
+    updated_at: row.updated_at ?? row.started_at,
+    domain: row.domain,
+    url: row.url,
+    title: row.title,
+  };
+}
+
+function memberWithActivity(
+  member: MemberActivity,
+  activeTab: ActiveTab | null,
+  openSession: OpenWorkSession | null,
+): MemberActivity {
+  return {
+    ...member,
+    activeTab,
+    openSession,
+    status: deriveStatus(activeTab?.updated_at, openSession?.updated_at),
+  };
+}
 
 export function useTetherBoard(tetherId: string | undefined) {
   const [state, setState] = useState<TetherBoardState>({
@@ -18,20 +52,29 @@ export function useTetherBoard(tetherId: string | undefined) {
     loading: true,
     refreshing: false,
     error: "",
+    dailyWorkMs: 0,
+    localDayWindow: getLocalDayWindow(),
   });
+  const localDayStartRef = useRef(state.localDayWindow.dayStart.getTime());
 
   const loadBoard = useCallback(async () => {
     if (!tetherId) return;
 
-    const [tether, members] = await Promise.all([
+    const localDayWindow = getLocalDayWindow();
+    const [tether, members, dailyWorkMs] = await Promise.all([
       fetchTether(tetherId),
       fetchTetherBoard(tetherId),
+      fetchTetherDailyWorkTotal(tetherId, localDayWindow.dayStart, localDayWindow.dayEnd),
     ]);
+
+    localDayStartRef.current = localDayWindow.dayStart.getTime();
 
     setState((prev) => ({
       ...prev,
       tether,
       members,
+      dailyWorkMs,
+      localDayWindow,
       error: "",
     }));
   }, [tetherId]);
@@ -98,39 +141,96 @@ export function useTetherBoard(tetherId: string | undefined) {
             const member = nextMembers[memberIndex];
 
             if (payload.eventType === "DELETE") {
-              nextMembers[memberIndex] = {
-                ...member,
-                activeTab: null,
-                status: "offline",
-              };
+              nextMembers[memberIndex] = memberWithActivity(member, null, member.openSession);
             } else {
               const activeTab = payload.new as ActiveTab;
-              nextMembers[memberIndex] = {
-                ...member,
+              nextMembers[memberIndex] = memberWithActivity(
+                member,
                 activeTab,
-                status: deriveStatus(activeTab.updated_at),
-              };
+                member.openSession,
+              );
             }
+
+            return { ...prev, members: nextMembers };
+          });
+
+          if (!cancelled) {
+            loadBoard().catch(() => {});
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "work_sessions",
+        },
+        (payload) => {
+          setState((prev) => {
+            const row =
+              payload.eventType === "DELETE"
+                ? (payload.old as WorkSession)
+                : (payload.new as WorkSession);
+
+            const memberIndex = prev.members.findIndex((member) => member.user_id === row.user_id);
+            if (memberIndex === -1) return prev;
+
+            const nextMembers = [...prev.members];
+            const member = nextMembers[memberIndex];
+
+            let openSession = member.openSession;
+
+            if (payload.eventType === "DELETE") {
+              openSession = null;
+            } else if (row.ended_at) {
+              openSession = null;
+            } else {
+              openSession = openSessionFromRow(row);
+            }
+
+            nextMembers[memberIndex] = memberWithActivity(
+              member,
+              member.activeTab,
+              openSession,
+            );
 
             return { ...prev, members: nextMembers };
           });
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          loadBoard().catch(() => {});
+        }
+      });
+
+    const pollInterval = setInterval(() => {
+      loadBoard().catch(() => {});
+    }, 30_000);
 
     const statusInterval = setInterval(() => {
       setState((prev) => ({
         ...prev,
         members: prev.members.map((member) => ({
           ...member,
-          status: deriveStatus(member.activeTab?.updated_at),
+          status: deriveStatus(member.activeTab?.updated_at, member.openSession?.updated_at),
         })),
       }));
     }, 30_000);
 
+    const dayBoundaryInterval = setInterval(() => {
+      const currentDayStart = getLocalDayWindow().dayStart.getTime();
+      if (localDayStartRef.current !== currentDayStart) {
+        loadBoard().catch(() => {});
+      }
+    }, 60_000);
+
     return () => {
       cancelled = true;
+      clearInterval(pollInterval);
       clearInterval(statusInterval);
+      clearInterval(dayBoundaryInterval);
       supabase.removeChannel(channel);
     };
   }, [loadBoard, tetherId]);

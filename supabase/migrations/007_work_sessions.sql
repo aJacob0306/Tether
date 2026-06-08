@@ -8,6 +8,7 @@ create table public.work_sessions (
   title text not null default '',
   started_at timestamptz not null default now(),
   ended_at timestamptz,
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 

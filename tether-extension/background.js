@@ -1,38 +1,30 @@
-import { getActiveBrowserTab, isTrackableUrl, syncTab } from "./lib/api.js";
-import {
-  closeIdleWorkSessionIfNeeded,
-  closeOpenWorkSession,
-  syncWorkSession,
-} from "./lib/sessions.js";
+import { closeIdleWorkSessionIfNeeded, closeOpenWorkSession } from "./lib/sessions.js";
+import { syncActiveTab } from "./lib/sync.js";
 
 const IDLE_CHECK_ALARM = "tether-idle-check";
+const SYNC_HEARTBEAT_ALARM = "tether-sync-heartbeat";
 
-async function syncActiveTab() {
-  try {
-    const tab = await getActiveBrowserTab();
-    if (!tab?.url) {
-      throw new Error("No active tab found.");
-    }
-
-    if (isTrackableUrl(tab.url)) {
-      await syncTab(tab);
-      console.log("[Tether] Synced:", tab.title, tab.url);
-    }
-
-    await syncWorkSession(tab);
-    return tab;
-  } catch (error) {
-    console.log("[Tether] Sync skipped:", error.message);
-    throw error;
-  }
+function logSyncFailure(error) {
+  console.log("[Tether] Sync skipped:", error.message);
 }
 
-function setupIdleAlarm() {
+function setupAlarms() {
   chrome.alarms.create(IDLE_CHECK_ALARM, { periodInMinutes: 2 });
+  chrome.alarms.create(SYNC_HEARTBEAT_ALARM, { periodInMinutes: 1 });
+}
+
+function syncAndLog() {
+  syncActiveTab()
+    .then((result) => {
+      if (result.trackable) {
+        console.log("[Tether] Synced:", result.title, result.url);
+      }
+    })
+    .catch(logSyncFailure);
 }
 
 chrome.tabs.onActivated.addListener(() => {
-  syncActiveTab().catch(() => {});
+  syncAndLog();
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -40,7 +32,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
   chrome.tabs.get(tabId, (tab) => {
     if (chrome.runtime.lastError || !tab.active) return;
-    syncActiveTab().catch(() => {});
+    syncAndLog();
   });
 });
 
@@ -50,36 +42,46 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
     return;
   }
 
-  syncActiveTab().catch(() => {});
+  syncAndLog();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== IDLE_CHECK_ALARM) return;
-  closeIdleWorkSessionIfNeeded().catch(() => {});
+  if (alarm.name === IDLE_CHECK_ALARM) {
+    closeIdleWorkSessionIfNeeded().catch((error) => {
+      console.log("[Tether] Idle check failed:", error.message);
+    });
+    return;
+  }
+
+  if (alarm.name === SYNC_HEARTBEAT_ALARM) {
+    syncAndLog();
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  setupIdleAlarm();
-  syncActiveTab().catch(() => {});
+  setupAlarms();
+  syncAndLog();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  setupIdleAlarm();
-  syncActiveTab().catch(() => {});
+  setupAlarms();
+  syncAndLog();
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "SYNC_NOW") return;
 
   syncActiveTab()
-    .then((tab) =>
+    .then((result) =>
       sendResponse({
         ok: true,
-        title: tab.title ?? "",
-        url: tab.url ?? "",
+        title: result.title,
+        url: result.url,
       }),
     )
     .catch((error) => sendResponse({ ok: false, error: error.message }));
 
   return true;
 });
+
+setupAlarms();

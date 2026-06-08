@@ -169,6 +169,26 @@ export const appStyles = StyleSheet.create({
   screenHeader: {
     marginBottom: 24,
   },
+  groupFocusTimer: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+    backgroundColor: "#111",
+    alignItems: "center",
+  },
+  groupFocusTimerValue: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  groupFocusTimerLabel: {
+    fontSize: 13,
+    color: "#a3a3a3",
+    textAlign: "center",
+  },
   list: {
     flex: 1,
   },

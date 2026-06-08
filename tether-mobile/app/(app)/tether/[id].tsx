@@ -10,13 +10,23 @@ import {
   View,
 } from "react-native";
 import { MemberCard } from "../../../components/MemberCard";
+import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { appStyles } from "../../../constants/styles";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
 
 export default function TetherBoardScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tether, members, loading, refreshing, error, refresh } = useTetherBoard(id);
+  const {
+    tether,
+    members,
+    loading,
+    refreshing,
+    error,
+    dailyWorkMs,
+    localDayWindow,
+    refresh,
+  } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
 
   async function handleCopyInviteCode() {
@@ -49,6 +59,12 @@ export default function TetherBoardScreen() {
               </Text>
             </Pressable>
           </View>
+
+          <GroupFocusTimer
+            members={members}
+            dailyWorkMs={dailyWorkMs}
+            dayStart={localDayWindow.dayStart}
+          />
 
           {members.length === 1 ? (
             <Text style={appStyles.emptyState}>

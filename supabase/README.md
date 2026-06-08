@@ -30,5 +30,9 @@ supabase db push
 | `005_backfill_profiles.sql` | Create missing `profiles` rows for existing/manual auth users |
 | `006_tether_board_rpc.sql` | Secure board loader that returns member names and active tabs for a tether |
 | `007_work_sessions.sql` | Per-domain work sessions for focus time and top-site stats |
+| `008_tether_board_sessions.sql` | Board RPC includes open work session fields; Realtime on `work_sessions` |
+| `009_active_tabs_updated_at_trigger.sql` | Keeps `active_tabs.updated_at` fresh on every tab sync |
+| `010_work_sessions_updated_at.sql` | Adds `work_sessions.updated_at` freshness tracking and updates the board RPC |
+| `011_tether_daily_work_total.sql` | Adds daily per-member work-time aggregation for the board timer |
 
 Apply migrations in order. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.

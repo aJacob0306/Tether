@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY = RAW_SUPABASE_ANON_KEY?.trim() ?? "";
 
 const SESSION_KEY = "tether_session";
 const REFRESH_BUFFER_SECONDS = 60;
+let refreshSessionPromise = null;
 
 const IGNORED_URL_PREFIXES = ["chrome://", "chrome-extension://", "edge://", "about:"];
 
@@ -37,6 +38,16 @@ function normalizeSession(data) {
     data.expires_at = Math.floor(Date.now() / 1000) + data.expires_in;
   }
   return data;
+}
+
+function mergeRefreshedSession(previousSession, refreshData) {
+  const refreshedSession = normalizeSession({ ...refreshData });
+  return {
+    ...previousSession,
+    ...refreshedSession,
+    refresh_token: refreshedSession.refresh_token ?? previousSession.refresh_token,
+    user: refreshedSession.user ?? previousSession.user,
+  };
 }
 
 function isSessionExpired(session) {
@@ -156,6 +167,16 @@ async function saveSession(session) {
 }
 
 export async function refreshSession(session) {
+  if (refreshSessionPromise) return refreshSessionPromise;
+
+  refreshSessionPromise = refreshSessionOnce(session).finally(() => {
+    refreshSessionPromise = null;
+  });
+
+  return refreshSessionPromise;
+}
+
+async function refreshSessionOnce(session) {
   assertConfig();
 
   if (!session?.refresh_token) {
@@ -184,7 +205,7 @@ export async function refreshSession(session) {
     throw new Error(data.error_description || data.msg || "Session expired. Sign in again.");
   }
 
-  const nextSession = normalizeSession(data);
+  const nextSession = mergeRefreshedSession(session, data);
   await saveSession(nextSession);
   return nextSession;
 }
@@ -253,6 +274,7 @@ export async function upsertActiveTab({ url, title }) {
         user_id: session.user.id,
         url,
         title,
+        updated_at: new Date().toISOString(),
       }),
     });
   }
@@ -320,16 +342,22 @@ export async function closeWorkSession(sessionId, endedAt) {
 }
 
 export async function updateWorkSessionTab(sessionId, { url, title }) {
-  await authedRestRequest((authSession) =>
-    fetch(`${SUPABASE_URL}/rest/v1/work_sessions?id=eq.${encodeURIComponent(sessionId)}`, {
-      method: "PATCH",
-      headers: {
-        ...authHeaders(authSession.access_token),
-        Prefer: "return=minimal",
+  const { response } = await authedRestRequest((authSession) =>
+    fetch(
+      `${SUPABASE_URL}/rest/v1/work_sessions?id=eq.${encodeURIComponent(sessionId)}&select=id,domain,url,title,started_at,ended_at`,
+      {
+        method: "PATCH",
+        headers: {
+          ...authHeaders(authSession.access_token),
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({ url, title }),
       },
-      body: JSON.stringify({ url, title }),
-    }),
+    ),
   );
+
+  const rows = await response.json();
+  return rows[0] ?? null;
 }
 
 export async function getActiveBrowserTab() {

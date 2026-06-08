@@ -18,24 +18,40 @@ type MemberCardProps = {
   member: MemberActivity;
 };
 
+function displayDomain(member: MemberActivity): string | null {
+  if (member.activeTab?.url) {
+    try {
+      return new URL(member.activeTab.url).hostname;
+    } catch {
+      // fall through to session domain
+    }
+  }
+
+  return member.openSession?.domain ?? null;
+}
+
 export function MemberCard({ member }: MemberCardProps) {
+  const domain = displayDomain(member);
+  const statusText = domain
+    ? `${statusLabel(member.status)} on ${domain}`
+    : statusLabel(member.status);
+
   const tabTitle =
-    member.status === "offline" || !member.activeTab
+    member.status === "offline" && !member.activeTab && !member.openSession
       ? "Not synced"
-      : member.activeTab.title || "Untitled tab";
+      : member.activeTab?.title || member.openSession?.title || "Untitled tab";
+  const updatedAt = member.activeTab?.updated_at ?? member.openSession?.updated_at;
 
   return (
     <View style={appStyles.memberCard}>
       <View style={appStyles.memberHeader}>
         <View style={[appStyles.statusDot, statusDotStyle(member.status)]} />
         <Text style={appStyles.memberName}>{member.display_name}</Text>
-        <Text style={appStyles.memberStatus}>{statusLabel(member.status)}</Text>
+        <Text style={appStyles.memberStatus}>{statusText}</Text>
       </View>
       <Text style={appStyles.memberTabTitle}>{tabTitle}</Text>
       <Text style={appStyles.memberMeta}>
-        {member.activeTab
-          ? `Updated ${formatRelativeTime(member.activeTab.updated_at)}`
-          : "No activity synced"}
+        {updatedAt ? `Updated ${formatRelativeTime(updatedAt)}` : "No activity synced"}
       </Text>
     </View>
   );

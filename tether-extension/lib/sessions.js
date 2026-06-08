@@ -1,5 +1,6 @@
 import {
   closeWorkSession,
+  getOpenWorkSession,
   isTrackableUrl,
   parseDomain,
   startWorkSession,
@@ -33,6 +34,23 @@ function msSince(isoTimestamp) {
   return Date.now() - new Date(isoTimestamp).getTime();
 }
 
+function isUniqueOpenSessionError(error) {
+  const message = error?.message?.toLowerCase() ?? "";
+  return (
+    message.includes("23505") ||
+    message.includes("duplicate key") ||
+    message.includes("work_sessions_one_open_per_user_idx")
+  );
+}
+
+function stateFromSession(session, lastSyncAt) {
+  return {
+    openSessionId: session.id,
+    openSessionDomain: session.domain,
+    lastSyncAt,
+  };
+}
+
 async function closeStoredSession(state) {
   if (!state.openSessionId) return;
 
@@ -41,6 +59,35 @@ async function closeStoredSession(state) {
   } catch (error) {
     console.log("[Tether] Session close failed:", error.message);
   }
+}
+
+async function loadOpenSessionState(nowIso) {
+  const existing = await getOpenWorkSession();
+  return existing?.id ? stateFromSession(existing, nowIso) : { ...EMPTY_STATE };
+}
+
+async function startSessionState({ domain, url, title, nowIso }) {
+  try {
+    const session = await startWorkSession({ domain, url, title });
+    if (!session?.id) {
+      throw new Error("Failed to start work session.");
+    }
+    return stateFromSession(session, nowIso);
+  } catch (error) {
+    if (!isUniqueOpenSessionError(error)) throw error;
+
+    const existing = await getOpenWorkSession();
+    if (existing?.id) {
+      return stateFromSession(existing, nowIso);
+    }
+
+    throw error;
+  }
+}
+
+async function saveAndReturnState(state) {
+  await saveSessionState(state);
+  return state;
 }
 
 export async function syncWorkSession(tab) {
@@ -72,17 +119,28 @@ export async function syncWorkSession(tab) {
     }
 
     if (!state.openSessionId) {
-      const session = await startWorkSession({ domain, url, title });
-      await saveSessionState({
-        openSessionId: session.id,
-        openSessionDomain: domain,
-        lastSyncAt: nowIso,
-      });
+      state = await loadOpenSessionState(nowIso);
+    }
+
+    if (!state.openSessionId) {
+      await saveAndReturnState(await startSessionState({ domain, url, title, nowIso }));
       return;
     }
 
     if (state.openSessionDomain === domain) {
-      await updateWorkSessionTab(state.openSessionId, { url, title });
+      const updated = await updateWorkSessionTab(state.openSessionId, { url, title });
+      if (!updated?.id) {
+        state = await loadOpenSessionState(nowIso);
+        if (!state.openSessionId) {
+          state = await startSessionState({ domain, url, title, nowIso });
+        } else if (state.openSessionDomain !== domain) {
+          await closeWorkSession(state.openSessionId);
+          state = await startSessionState({ domain, url, title, nowIso });
+        } else {
+          await updateWorkSessionTab(state.openSessionId, { url, title });
+        }
+      }
+
       await saveSessionState({
         ...state,
         lastSyncAt: nowIso,
@@ -91,15 +149,17 @@ export async function syncWorkSession(tab) {
     }
 
     await closeWorkSession(state.openSessionId);
-    const session = await startWorkSession({ domain, url, title });
-    await saveSessionState({
-      openSessionId: session.id,
-      openSessionDomain: domain,
-      lastSyncAt: nowIso,
-    });
+    await saveAndReturnState(await startSessionState({ domain, url, title, nowIso }));
   } catch (error) {
     console.log("[Tether] Session sync failed:", error.message);
-    await clearSessionState();
+    try {
+      const recoveredState = await loadOpenSessionState(nowIso);
+      if (recoveredState.openSessionId) {
+        await saveSessionState(recoveredState);
+      }
+    } catch (recoveryError) {
+      console.log("[Tether] Session recovery failed:", recoveryError.message);
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import {
   supabase,
   type ActiveTab,
   type MemberActivity,
+  type OpenWorkSession,
   type Tether,
 } from "./supabase";
 
@@ -128,6 +129,11 @@ export async function fetchTetherBoard(tetherId: string): Promise<MemberActivity
     url: string | null;
     title: string | null;
     updated_at: string | null;
+    session_started_at: string | null;
+    session_updated_at: string | null;
+    session_domain: string | null;
+    session_url: string | null;
+    session_title: string | null;
   };
 
   const uniqueMembers = new Map<string, MemberActivity>();
@@ -142,13 +148,42 @@ export async function fetchTetherBoard(tetherId: string): Promise<MemberActivity
         }
       : null;
 
+    const openSession: OpenWorkSession | null = row.session_started_at
+      ? {
+          started_at: row.session_started_at,
+          updated_at: row.session_updated_at ?? row.session_started_at,
+          domain: row.session_domain ?? "",
+          url: row.session_url ?? "",
+          title: row.session_title ?? "",
+        }
+      : null;
+
     uniqueMembers.set(row.user_id, {
       user_id: row.user_id,
       display_name: row.display_name ?? "Tether User",
       activeTab,
-      status: deriveStatus(activeTab?.updated_at),
+      openSession,
+      status: deriveStatus(activeTab?.updated_at, openSession?.updated_at),
     });
   });
 
   return Array.from(uniqueMembers.values());
+}
+
+export async function fetchTetherDailyWorkTotal(
+  tetherId: string,
+  dayStart: Date,
+  dayEnd: Date,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("get_tether_daily_work_total", {
+    p_tether_id: tetherId,
+    p_day_start: dayStart.toISOString(),
+    p_day_end: dayEnd.toISOString(),
+  });
+
+  if (error) {
+    throw new Error(getErrorMessage(error, "Failed to load daily work timer."));
+  }
+
+  return Number(data ?? 0);
 }

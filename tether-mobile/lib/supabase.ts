@@ -39,10 +39,25 @@ export type TetherMember = {
 
 export type WorkStatus = "working" | "idle" | "offline";
 
+export type OpenWorkSession = {
+  started_at: string;
+  updated_at: string;
+  domain: string;
+  url: string;
+  title: string;
+};
+
+export type WorkSession = OpenWorkSession & {
+  id: string;
+  user_id: string;
+  ended_at: string | null;
+};
+
 export type MemberActivity = {
   user_id: string;
   display_name: string;
   activeTab: ActiveTab | null;
+  openSession: OpenWorkSession | null;
   status: WorkStatus;
 };
 
