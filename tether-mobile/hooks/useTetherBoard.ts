@@ -3,12 +3,18 @@ import { deriveStatus, getLocalDayWindow, type LocalDayWindow } from "../lib/sta
 import {
   supabase,
   type ActiveTab,
+  type DailyMemberLog,
   type MemberActivity,
   type OpenWorkSession,
   type Tether,
   type WorkSession,
 } from "../lib/supabase";
-import { fetchTether, fetchTetherBoard, fetchTetherDailyWorkTotal } from "../lib/tethers";
+import {
+  fetchTether,
+  fetchTetherBoard,
+  fetchTetherDailyMemberLogs,
+  fetchTetherDailyWorkTotal,
+} from "../lib/tethers";
 
 type TetherBoardState = {
   tether: Tether | null;
@@ -17,6 +23,7 @@ type TetherBoardState = {
   refreshing: boolean;
   error: string;
   dailyWorkMs: number;
+  dailyMemberLogs: DailyMemberLog[];
   localDayWindow: LocalDayWindow;
 };
 
@@ -53,6 +60,7 @@ export function useTetherBoard(tetherId: string | undefined) {
     refreshing: false,
     error: "",
     dailyWorkMs: 0,
+    dailyMemberLogs: [],
     localDayWindow: getLocalDayWindow(),
   });
   const localDayStartRef = useRef(state.localDayWindow.dayStart.getTime());
@@ -61,10 +69,11 @@ export function useTetherBoard(tetherId: string | undefined) {
     if (!tetherId) return;
 
     const localDayWindow = getLocalDayWindow();
-    const [tether, members, dailyWorkMs] = await Promise.all([
+    const [tether, members, dailyWorkMs, dailyMemberLogs] = await Promise.all([
       fetchTether(tetherId),
       fetchTetherBoard(tetherId),
       fetchTetherDailyWorkTotal(tetherId, localDayWindow.dayStart, localDayWindow.dayEnd),
+      fetchTetherDailyMemberLogs(tetherId, localDayWindow.dayStart, localDayWindow.dayEnd),
     ]);
 
     localDayStartRef.current = localDayWindow.dayStart.getTime();
@@ -74,6 +83,7 @@ export function useTetherBoard(tetherId: string | undefined) {
       tether,
       members,
       dailyWorkMs,
+      dailyMemberLogs,
       localDayWindow,
       error: "",
     }));
@@ -197,6 +207,10 @@ export function useTetherBoard(tetherId: string | undefined) {
 
             return { ...prev, members: nextMembers };
           });
+
+          if (!cancelled) {
+            loadBoard().catch(() => {});
+          }
         },
       )
       .subscribe((status) => {

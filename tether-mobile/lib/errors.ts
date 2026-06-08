@@ -17,6 +17,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       return "Daily work timer not set up. Run supabase/migrations/011_tether_daily_work_total.sql in Supabase.";
     }
 
+    if (message.includes("get_tether_daily_member_logs")) {
+      return "Detailed log not set up. Run supabase/migrations/012_tether_daily_member_logs.sql in Supabase.";
+    }
+
     if (message.includes("work_sessions")) {
       return "Work sessions not set up. Run supabase/migrations/007_work_sessions.sql and 008_tether_board_sessions.sql in Supabase.";
     }

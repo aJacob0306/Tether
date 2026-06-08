@@ -3,6 +3,8 @@ import { getErrorMessage } from "./errors";
 import {
   supabase,
   type ActiveTab,
+  type DailyMemberLog,
+  type DailyTopDomain,
   type MemberActivity,
   type OpenWorkSession,
   type Tether,
@@ -186,4 +188,51 @@ export async function fetchTetherDailyWorkTotal(
   }
 
   return Number(data ?? 0);
+}
+
+function parseTopDomains(value: unknown): DailyTopDomain[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((domain) => {
+      if (!domain || typeof domain !== "object") return null;
+      const row = domain as { domain?: unknown; work_ms?: unknown };
+      if (typeof row.domain !== "string") return null;
+
+      return {
+        domain: row.domain,
+        workMs: Number(row.work_ms ?? 0),
+      };
+    })
+    .filter((domain): domain is DailyTopDomain => domain != null);
+}
+
+export async function fetchTetherDailyMemberLogs(
+  tetherId: string,
+  dayStart: Date,
+  dayEnd: Date,
+): Promise<DailyMemberLog[]> {
+  const { data, error } = await supabase.rpc("get_tether_daily_member_logs", {
+    p_tether_id: tetherId,
+    p_day_start: dayStart.toISOString(),
+    p_day_end: dayEnd.toISOString(),
+  });
+
+  if (error) {
+    throw new Error(getErrorMessage(error, "Failed to load detailed log."));
+  }
+
+  type LogRow = {
+    user_id: string;
+    display_name: string | null;
+    total_work_ms: number | string | null;
+    top_domains: unknown;
+  };
+
+  return ((data ?? []) as LogRow[]).map((row) => ({
+    user_id: row.user_id,
+    display_name: row.display_name ?? "Tether User",
+    totalWorkMs: Number(row.total_work_ms ?? 0),
+    topDomains: parseTopDomains(row.top_domains),
+  }));
 }

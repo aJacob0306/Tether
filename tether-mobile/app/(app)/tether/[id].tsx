@@ -11,8 +11,11 @@ import {
 } from "react-native";
 import { MemberCard } from "../../../components/MemberCard";
 import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
+import { DetailedLog } from "../../../components/DetailedLog";
 import { appStyles } from "../../../constants/styles";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
+
+type TetherTab = "home" | "log";
 
 export default function TetherBoardScreen() {
   const router = useRouter();
@@ -24,10 +27,12 @@ export default function TetherBoardScreen() {
     refreshing,
     error,
     dailyWorkMs,
+    dailyMemberLogs,
     localDayWindow,
     refresh,
   } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<TetherTab>("home");
 
   async function handleCopyInviteCode() {
     if (!tether?.invite_code) return;
@@ -60,25 +65,35 @@ export default function TetherBoardScreen() {
             </Pressable>
           </View>
 
-          <GroupFocusTimer
-            members={members}
-            dailyWorkMs={dailyWorkMs}
-            dayStart={localDayWindow.dayStart}
-          />
+          {activeTab === "home" ? (
+            <>
+              <GroupFocusTimer
+                members={members}
+                dailyWorkMs={dailyWorkMs}
+                dayStart={localDayWindow.dayStart}
+              />
 
-          {members.length === 1 ? (
-            <Text style={appStyles.emptyState}>
-              Share the invite code so others can join and you can see each other working.
-            </Text>
-          ) : null}
+              {members.length === 1 ? (
+                <Text style={appStyles.emptyState}>
+                  Share the invite code so others can join and you can see each other working.
+                </Text>
+              ) : null}
 
-          <FlatList
-            style={appStyles.list}
-            contentContainerStyle={appStyles.listContent}
-            data={members}
-            keyExtractor={(item, index) => `${item.user_id}-${index}`}
-            renderItem={({ item }) => <MemberCard member={item} />}
-          />
+              <FlatList
+                style={appStyles.list}
+                contentContainerStyle={appStyles.listContent}
+                data={members}
+                keyExtractor={(item) => item.user_id}
+                renderItem={({ item }) => <MemberCard member={item} />}
+              />
+            </>
+          ) : (
+            <DetailedLog
+              logs={dailyMemberLogs}
+              members={members}
+              dayStart={localDayWindow.dayStart}
+            />
+          )}
 
           <Pressable
             style={[appStyles.primaryButton, refreshing && appStyles.buttonDisabled]}
@@ -91,6 +106,58 @@ export default function TetherBoardScreen() {
               <Text style={appStyles.primaryButtonText}>Refresh</Text>
             )}
           </Pressable>
+
+          <View style={appStyles.tetherTabBar}>
+            <Pressable
+              style={[
+                appStyles.tetherTabButton,
+                activeTab === "home" && appStyles.tetherTabButtonActive,
+              ]}
+              onPress={() => setActiveTab("home")}
+            >
+              <Text
+                style={[
+                  appStyles.tetherTabIcon,
+                  activeTab === "home" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                H
+              </Text>
+              <Text
+                style={[
+                  appStyles.tetherTabLabel,
+                  activeTab === "home" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                Home
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                appStyles.tetherTabButton,
+                activeTab === "log" && appStyles.tetherTabButtonActive,
+              ]}
+              onPress={() => setActiveTab("log")}
+            >
+              <Text
+                style={[
+                  appStyles.tetherTabIcon,
+                  activeTab === "log" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                L
+              </Text>
+              <Text
+                style={[
+                  appStyles.tetherTabLabel,
+                  activeTab === "log" && appStyles.tetherTabTextActive,
+                ]}
+              >
+                Detailed Log
+              </Text>
+            </Pressable>
+          </View>
         </>
       ) : null}
 

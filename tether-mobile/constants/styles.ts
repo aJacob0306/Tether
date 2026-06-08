@@ -196,6 +196,68 @@ export const appStyles = StyleSheet.create({
     paddingBottom: 24,
     gap: 12,
   },
+  detailLogList: {
+    flex: 1,
+  },
+  detailLogContent: {
+    paddingBottom: 24,
+    gap: 12,
+  },
+  detailLogCard: {
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: "#fafafa",
+  },
+  detailLogHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  detailLogName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+  detailLogTotal: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+  detailLogMeta: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 12,
+  },
+  detailLogEmpty: {
+    fontSize: 13,
+    color: "#666",
+  },
+  detailDomainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#ededed",
+  },
+  detailDomainRank: {
+    width: 24,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#666",
+  },
+  detailDomainName: {
+    flex: 1,
+    fontSize: 14,
+    color: "#111",
+  },
+  detailDomainTime: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#555",
+  },
   tetherCard: {
     borderWidth: 1,
     borderColor: "#e5e5e5",
@@ -291,5 +353,37 @@ export const appStyles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
     marginTop: 8,
+  },
+  tetherTabBar: {
+    flexDirection: "row",
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5e5",
+    paddingTop: 12,
+    marginTop: 12,
+  },
+  tetherTabButton: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f3f3f3",
+  },
+  tetherTabButtonActive: {
+    backgroundColor: "#111",
+  },
+  tetherTabIcon: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#555",
+    marginBottom: 2,
+  },
+  tetherTabLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#555",
+  },
+  tetherTabTextActive: {
+    color: "#fff",
   },
 });

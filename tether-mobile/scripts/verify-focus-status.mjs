@@ -54,6 +54,38 @@ function getDailyWorkTotalMs(sessions, dayStart, dayEnd, now) {
   }, 0);
 }
 
+function getDailyMemberLogs(sessions, members, dayStart, dayEnd, now) {
+  const logs = new Map(
+    members.map((member) => [
+      member.user_id,
+      {
+        user_id: member.user_id,
+        totalWorkMs: 0,
+        topDomains: new Map(),
+      },
+    ]),
+  );
+
+  sessions.forEach((session) => {
+    const log = logs.get(session.user_id);
+    if (!log) return;
+
+    const workMs = getDailyWorkTotalMs([session], dayStart, dayEnd, now);
+    if (workMs <= 0) return;
+
+    log.totalWorkMs += workMs;
+    log.topDomains.set(session.domain, (log.topDomains.get(session.domain) ?? 0) + workMs);
+  });
+
+  return Array.from(logs.values()).map((log) => ({
+    ...log,
+    topDomains: Array.from(log.topDomains.entries())
+      .map(([domain, workMs]) => ({ domain, workMs }))
+      .sort((a, b) => b.workMs - a.workMs || a.domain.localeCompare(b.domain))
+      .slice(0, 3),
+  }));
+}
+
 function deriveStatus(updatedAt, openSessionUpdatedAt, now = Date.now()) {
   const activityAt = [updatedAt, openSessionUpdatedAt]
     .filter(Boolean)
@@ -139,6 +171,81 @@ const checks = [
       ),
     ),
     "1h 55m",
+  ],
+  [
+    JSON.stringify(
+      getDailyMemberLogs(
+        [
+          {
+            user_id: "a",
+            domain: "docs.example.com",
+            started_at: "2026-05-30T09:00:00.000Z",
+            ended_at: "2026-05-30T09:30:00.000Z",
+            updated_at: "2026-05-30T09:30:00.000Z",
+          },
+          {
+            user_id: "a",
+            domain: "github.com",
+            started_at: "2026-05-30T10:00:00.000Z",
+            ended_at: "2026-05-30T11:00:00.000Z",
+            updated_at: "2026-05-30T11:00:00.000Z",
+          },
+          {
+            user_id: "a",
+            domain: "docs.example.com",
+            started_at: "2026-05-30T11:00:00.000Z",
+            ended_at: "2026-05-30T11:45:00.000Z",
+            updated_at: "2026-05-30T11:45:00.000Z",
+          },
+          {
+            user_id: "a",
+            domain: "mail.example.com",
+            started_at: "2026-05-30T08:00:00.000Z",
+            ended_at: "2026-05-30T08:10:00.000Z",
+            updated_at: "2026-05-30T08:10:00.000Z",
+          },
+          {
+            user_id: "a",
+            domain: "calendar.example.com",
+            started_at: "2026-05-30T08:10:00.000Z",
+            ended_at: "2026-05-30T08:15:00.000Z",
+            updated_at: "2026-05-30T08:15:00.000Z",
+          },
+          {
+            user_id: "b",
+            domain: "figma.com",
+            started_at: "2026-05-30T09:00:00.000Z",
+            ended_at: "2026-05-30T09:20:00.000Z",
+            updated_at: "2026-05-30T09:20:00.000Z",
+          },
+        ],
+        [{ user_id: "a" }, { user_id: "b" }, { user_id: "c" }],
+        dayStart,
+        dayEnd,
+        now,
+      ).map((log) => ({
+        user_id: log.user_id,
+        total: formatFocusDurationFromMs(log.totalWorkMs),
+        domains: log.topDomains.map((domain) => domain.domain),
+      })),
+    ),
+    JSON.stringify([
+      {
+        user_id: "a",
+        total: "2h 30m",
+        domains: ["docs.example.com", "github.com", "mail.example.com"],
+      },
+      {
+        user_id: "b",
+        total: "20m",
+        domains: ["figma.com"],
+      },
+      {
+        user_id: "c",
+        total: "<1m",
+        domains: [],
+      },
+    ]),
   ],
 ];
 

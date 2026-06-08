@@ -34,5 +34,6 @@ supabase db push
 | `009_active_tabs_updated_at_trigger.sql` | Keeps `active_tabs.updated_at` fresh on every tab sync |
 | `010_work_sessions_updated_at.sql` | Adds `work_sessions.updated_at` freshness tracking and updates the board RPC |
 | `011_tether_daily_work_total.sql` | Adds daily per-member work-time aggregation for the board timer |
+| `012_tether_daily_member_logs.sql` | Adds per-member daily totals and top domains for the detailed log |
 
 Apply migrations in order. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.

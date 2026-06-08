@@ -61,6 +61,18 @@ export type MemberActivity = {
   status: WorkStatus;
 };
 
+export type DailyTopDomain = {
+  domain: string;
+  workMs: number;
+};
+
+export type DailyMemberLog = {
+  user_id: string;
+  display_name: string;
+  totalWorkMs: number;
+  topDomains: DailyTopDomain[];
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
