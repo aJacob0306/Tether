@@ -25,6 +25,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       return "Allowlist not set up. Run supabase/migrations/013_tether_allowed_targets.sql in Supabase.";
     }
 
+    if (message.includes("push_tokens") || message.includes("register_push_token")) {
+      return "Push notifications not set up. Run supabase/migrations/014_push_notifications.sql in Supabase.";
+    }
+
     if (message.includes("work_sessions")) {
       return "Work sessions not set up. Run supabase/migrations/007_work_sessions.sql and 008_tether_board_sessions.sql in Supabase.";
     }

@@ -6,6 +6,7 @@ import {
   startWorkSession,
   updateWorkSessionTab,
 } from "./api.js";
+import { notifyPeersStartedWorking } from "./notify.js";
 
 const IDLE_MS = 15 * 60 * 1000;
 const SESSION_STATE_KEY = "tether_work_session_state";
@@ -85,6 +86,16 @@ async function startSessionState({ domain, url, title, nowIso }) {
   }
 }
 
+async function startNewWorkSession({ domain, url, title, nowIso }) {
+  const state = await startSessionState({ domain, url, title, nowIso });
+
+  notifyPeersStartedWorking(domain).catch((error) => {
+    console.log("[Tether] Work-start notify failed:", error.message);
+  });
+
+  return state;
+}
+
 async function saveAndReturnState(state) {
   await saveSessionState(state);
   return state;
@@ -123,7 +134,7 @@ export async function syncWorkSession(tab) {
     }
 
     if (!state.openSessionId) {
-      await saveAndReturnState(await startSessionState({ domain, url, title, nowIso }));
+      await saveAndReturnState(await startNewWorkSession({ domain, url, title, nowIso }));
       return;
     }
 
@@ -132,10 +143,10 @@ export async function syncWorkSession(tab) {
       if (!updated?.id) {
         state = await loadOpenSessionState(nowIso);
         if (!state.openSessionId) {
-          state = await startSessionState({ domain, url, title, nowIso });
+          state = await startNewWorkSession({ domain, url, title, nowIso });
         } else if (state.openSessionDomain !== domain) {
           await closeWorkSession(state.openSessionId);
-          state = await startSessionState({ domain, url, title, nowIso });
+          state = await startNewWorkSession({ domain, url, title, nowIso });
         } else {
           await updateWorkSessionTab(state.openSessionId, { url, title });
         }
@@ -149,7 +160,7 @@ export async function syncWorkSession(tab) {
     }
 
     await closeWorkSession(state.openSessionId);
-    await saveAndReturnState(await startSessionState({ domain, url, title, nowIso }));
+    await saveAndReturnState(await startNewWorkSession({ domain, url, title, nowIso }));
   } catch (error) {
     console.log("[Tether] Session sync failed:", error.message);
     try {

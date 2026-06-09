@@ -29,3 +29,15 @@ cd tether-mobile && npm install && npm start
 2. **Join tether** — enter a friend's invite code
 3. **Set rules** — creator adds allowed apps and websites for the project
 4. **Open the board** — see each member's status when they're on an allowed target
+5. **Push alerts** — when someone starts on an allowlisted site, tether peers get a phone notification
+
+## iOS dev build (required for push)
+
+Push does not work in Expo Go. Build a development client:
+
+```bash
+cd tether-mobile
+npx eas-cli build --profile development --platform ios
+```
+
+Install the build on each iPhone, allow notifications, and sign in. See [`supabase/README.md`](supabase/README.md) for the push edge function deploy step.

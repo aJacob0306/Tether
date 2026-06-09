@@ -3,9 +3,11 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 function RootNavigator() {
   const { session, loading } = useAuth();
+  usePushNotifications(session?.user.id);
   const segments = useSegments();
   const router = useRouter();
 

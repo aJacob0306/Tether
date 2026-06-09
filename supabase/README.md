@@ -36,5 +36,21 @@ supabase db push
 | `011_tether_daily_work_total.sql` | Adds daily per-member work-time aggregation for the board timer |
 | `012_tether_daily_member_logs.sql` | Adds per-member daily totals and top domains for the detailed log |
 | `013_tether_allowed_targets.sql` | Creator-defined allowlist of apps and domains; `get_my_allowed_targets` RPC for extension |
+| `014_push_notifications.sql` | `push_tokens` table, `register_push_token` RPC, `get_peer_push_tokens` for edge function |
 
-Apply migrations in order. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.
+Apply migrations in order.
+
+## Edge function (push notifications)
+
+After migration `014`, deploy the work-start push function:
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+supabase functions deploy send-work-started-push
+```
+
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are injected automatically. Set `SUPABASE_SERVICE_ROLE_KEY` from **Project Settings → API → service_role** (keep secret).
+
+The Chrome extension calls this when a member starts working on an allowlisted site. Peers receive an Expo push on their phones. After `002_tethers.sql`, group members can see each other's active tabs and profiles when they share a tether.
