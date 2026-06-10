@@ -37,6 +37,8 @@ supabase db push
 | `012_tether_daily_member_logs.sql` | Adds per-member daily totals and top domains for the detailed log |
 | `013_tether_allowed_targets.sql` | Creator-defined allowlist of apps and domains; `get_my_allowed_targets` RPC for extension |
 | `014_push_notifications.sql` | `push_tokens` table, `register_push_token` RPC, `get_peer_push_tokens` for edge function |
+| `015_desktop_discovery.sql` | Desktop devices, detected app inventory, and app metadata on tether rules |
+| `016_app_work_sessions.sql` | App-aware work sessions and board/log RPC fields for desktop tracking |
 
 Apply migrations in order.
 

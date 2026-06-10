@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AllowlistPanel } from "../../../components/AllowlistPanel";
 import { MemberCard } from "../../../components/MemberCard";
 import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
@@ -16,6 +17,7 @@ import { DetailedLog } from "../../../components/DetailedLog";
 import { appStyles } from "../../../constants/styles";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
+import { formatFocusDurationFromMs, getLiveDailyFocusMs } from "../../../lib/status";
 
 type TetherTab = "home" | "rules" | "log";
 
@@ -37,6 +39,11 @@ export default function TetherBoardScreen() {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TetherTab>("home");
   const isCreator = Boolean(tether && session?.user.id === tether.created_by);
+  const workingMembers = members.filter((member) => member.status === "working");
+  const dailyFocusMs =
+    dailyWorkMs + getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
+  const dailyGoalMs = 8 * 60 * 60 * 1000;
+  const dailyProgress = Math.min(100, Math.round((dailyFocusMs / dailyGoalMs) * 100));
 
   async function handleCopyInviteCode() {
     if (!tether?.invite_code) return;
@@ -46,10 +53,15 @@ export default function TetherBoardScreen() {
   }
 
   return (
-    <View style={appStyles.screen}>
-      <Pressable onPress={() => router.back()} style={{ marginBottom: 8 }}>
-        <Text style={appStyles.linkText}>Back to tethers</Text>
-      </Pressable>
+    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
+      <View style={appStyles.topBar}>
+        <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
+          <Text style={appStyles.headerIconText}>BACK</Text>
+        </Pressable>
+        <Pressable onPress={handleCopyInviteCode} style={appStyles.headerIconButton}>
+          <Text style={appStyles.headerIconText}>{copied ? "COPIED" : "CODE"}</Text>
+        </Pressable>
+      </View>
 
       {loading ? (
         <ActivityIndicator style={appStyles.tabLoader} size="large" />
@@ -59,23 +71,61 @@ export default function TetherBoardScreen() {
         <>
           <View style={appStyles.screenHeader}>
             <Text style={appStyles.title}>{tether.name}</Text>
-            <Text style={appStyles.subtitle}>Live group activity</Text>
-            <Text style={appStyles.tetherCardMeta}>Invite code</Text>
-            <Pressable onPress={handleCopyInviteCode}>
-              <Text style={appStyles.inviteCode}>{tether.invite_code}</Text>
-              <Text style={appStyles.tetherCardMeta}>
-                {copied ? "Copied!" : "Tap to copy"}
-              </Text>
-            </Pressable>
+            <Text style={appStyles.subtitle}>
+              Live group activity, allowed work targets, and today's logged focus.
+            </Text>
+            <View style={appStyles.tetherCardFooter}>
+              <View style={appStyles.badge}>
+                <Text style={appStyles.badgeText}>Invite {tether.invite_code}</Text>
+              </View>
+              <View
+                style={[
+                  appStyles.badge,
+                  workingMembers.length > 0 ? appStyles.badgeActive : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    appStyles.badgeText,
+                    workingMembers.length > 0 ? appStyles.badgeActiveText : null,
+                  ]}
+                >
+                  {workingMembers.length} working
+                </Text>
+              </View>
+            </View>
           </View>
 
           {activeTab === "home" ? (
             <>
+              <View style={appStyles.metricGrid}>
+                <View style={appStyles.metricCard}>
+                  <Text style={appStyles.metricLabel}>Today</Text>
+                  <Text style={appStyles.metricValue}>
+                    {formatFocusDurationFromMs(dailyFocusMs)}
+                  </Text>
+                </View>
+                <View style={appStyles.metricCard}>
+                  <Text style={appStyles.metricLabel}>Members</Text>
+                  <Text style={appStyles.metricValue}>{members.length}</Text>
+                </View>
+              </View>
+
               <GroupFocusTimer
                 members={members}
                 dailyWorkMs={dailyWorkMs}
                 dayStart={localDayWindow.dayStart}
               />
+
+              <View style={appStyles.metricCard}>
+                <Text style={appStyles.metricLabel}>Goal Progress</Text>
+                <Text style={appStyles.tetherCardTitle}>
+                  {dailyProgress}% toward an 8h group day
+                </Text>
+                <View style={appStyles.progressTrack}>
+                  <View style={[appStyles.progressFill, { width: `${dailyProgress}%` }]} />
+                </View>
+              </View>
 
               {members.length === 1 ? (
                 <Text style={appStyles.emptyState}>
@@ -109,7 +159,7 @@ export default function TetherBoardScreen() {
             {refreshing ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={appStyles.primaryButtonText}>Refresh</Text>
+              <Text style={appStyles.primaryButtonText}>Refresh telemetry</Text>
             )}
           </Pressable>
 
@@ -193,6 +243,6 @@ export default function TetherBoardScreen() {
       ) : null}
 
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }

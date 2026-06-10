@@ -18,28 +18,45 @@ type MemberCardProps = {
   member: MemberActivity;
 };
 
-function displayDomain(member: MemberActivity): string | null {
+function displayTarget(member: MemberActivity): { label: string; preposition: string } | null {
+  if (member.openSession?.target_type === "app") {
+    return {
+      label:
+        member.openSession.target_display_name ??
+        member.openSession.target_value ??
+        member.openSession.title,
+      preposition: "in",
+    };
+  }
+
   if (member.activeTab?.url) {
     try {
-      return new URL(member.activeTab.url).hostname;
+      return {
+        label: new URL(member.activeTab.url).hostname,
+        preposition: "on",
+      };
     } catch {
       // fall through to session domain
     }
   }
 
-  return member.openSession?.domain ?? null;
+  return member.openSession?.domain
+    ? { label: member.openSession.domain, preposition: "on" }
+    : null;
 }
 
 export function MemberCard({ member }: MemberCardProps) {
-  const domain = displayDomain(member);
-  const statusText = domain
-    ? `${statusLabel(member.status)} on ${domain}`
+  const target = displayTarget(member);
+  const statusText = target
+    ? `${statusLabel(member.status)} ${target.preposition} ${target.label}`
     : statusLabel(member.status);
 
   const tabTitle =
     member.status === "offline" && !member.activeTab && !member.openSession
       ? "Not synced"
-      : member.activeTab?.title || member.openSession?.title || "Untitled tab";
+      : member.openSession?.target_type === "app"
+        ? member.openSession.target_display_name ?? member.openSession.title
+        : member.activeTab?.title || member.openSession?.title || "Untitled tab";
   const updatedAt = member.activeTab?.updated_at ?? member.openSession?.updated_at;
 
   return (

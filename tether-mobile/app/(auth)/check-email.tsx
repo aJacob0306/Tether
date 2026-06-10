@@ -1,13 +1,14 @@
 import { Link, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { authStyles } from "../../constants/styles";
 
 export default function CheckEmailScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
 
   return (
-    <View style={authStyles.container}>
+    <SafeAreaView style={authStyles.container} edges={["top", "bottom", "left", "right"]}>
       <Text style={authStyles.title}>Check your email</Text>
       <Text style={authStyles.subtitle}>
         We sent a confirmation link{email ? ` to ${email}` : ""}. Open it to activate your account,
@@ -21,6 +22,6 @@ export default function CheckEmailScreen() {
       </Link>
 
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }

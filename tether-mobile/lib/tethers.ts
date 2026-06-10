@@ -5,6 +5,7 @@ import {
   type ActiveTab,
   type DailyMemberLog,
   type DailyTopDomain,
+  type DetectedTool,
   type MemberActivity,
   type OpenWorkSession,
   type Tether,
@@ -41,7 +42,19 @@ export async function fetchMyTethers(): Promise<Tether[]> {
   return Array.from(uniqueTethers.values());
 }
 
-export async function createTether(name: string): Promise<Tether> {
+function uniqueDetectedApps(apps: DetectedTool[]): DetectedTool[] {
+  const byValue = new Map<string, DetectedTool>();
+  apps.forEach((app) => {
+    const key = app.value.trim().toLowerCase();
+    if (key && !byValue.has(key)) byValue.set(key, app);
+  });
+  return [...byValue.values()];
+}
+
+export async function createTether(
+  name: string,
+  selectedApps: DetectedTool[] = [],
+): Promise<Tether> {
   const trimmedName = name.trim();
   if (!trimmedName) {
     throw new Error("Enter a tether name.");
@@ -79,6 +92,34 @@ export async function createTether(name: string): Promise<Tether> {
 
     if (memberError) {
       throw new Error(getErrorMessage(memberError, "Failed to join tether as creator."));
+    }
+
+    const appTargets = uniqueDetectedApps(selectedApps).map((app) => ({
+      tether_id: tether.id,
+      target_type: "app" as const,
+      value: app.value,
+      detected_tool_id: app.id,
+      display_name: app.display_name,
+      bundle_identifier: app.bundle_identifier,
+      platform: app.platform,
+      metadata: {
+        source: "desktop_discovery",
+        installPath: app.install_path,
+        toolKey: app.tool_key,
+        ...app.metadata,
+      },
+    }));
+
+    if (appTargets.length) {
+      const { error: allowlistError } = await supabase
+        .from("tether_allowed_targets")
+        .insert(appTargets);
+
+      if (allowlistError) {
+        throw new Error(
+          getErrorMessage(allowlistError, "Failed to save selected apps."),
+        );
+      }
     }
 
     return tether;
@@ -136,6 +177,11 @@ export async function fetchTetherBoard(tetherId: string): Promise<MemberActivity
     session_domain: string | null;
     session_url: string | null;
     session_title: string | null;
+    session_target_type: "app" | "domain" | null;
+    session_target_value: string | null;
+    session_target_display_name: string | null;
+    session_bundle_identifier: string | null;
+    session_platform: string | null;
   };
 
   const uniqueMembers = new Map<string, MemberActivity>();
@@ -157,6 +203,12 @@ export async function fetchTetherBoard(tetherId: string): Promise<MemberActivity
           domain: row.session_domain ?? "",
           url: row.session_url ?? "",
           title: row.session_title ?? "",
+          target_type: row.session_target_type ?? "domain",
+          target_value: row.session_target_value ?? row.session_domain ?? "",
+          target_display_name:
+            row.session_target_display_name ?? row.session_target_value ?? row.session_domain ?? "",
+          bundle_identifier: row.session_bundle_identifier ?? null,
+          platform: row.session_platform ?? null,
         }
       : null;
 
@@ -196,13 +248,23 @@ function parseTopDomains(value: unknown): DailyTopDomain[] {
   return value
     .map((domain) => {
       if (!domain || typeof domain !== "object") return null;
-      const row = domain as { domain?: unknown; work_ms?: unknown };
+      const row = domain as {
+        domain?: unknown;
+        target_type?: unknown;
+        work_ms?: unknown;
+      };
       if (typeof row.domain !== "string") return null;
 
-      return {
+      const target: DailyTopDomain = {
         domain: row.domain,
         workMs: Number(row.work_ms ?? 0),
       };
+
+      if (row.target_type === "app" || row.target_type === "domain") {
+        target.targetType = row.target_type;
+      }
+
+      return target;
     })
     .filter((domain): domain is DailyTopDomain => domain != null);
 }

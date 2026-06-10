@@ -6,8 +6,8 @@ import {
   Pressable,
   Text,
   TextInput,
-  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { authStyles } from "../../constants/styles";
 import { joinTether } from "../../lib/tethers";
 
@@ -31,7 +31,7 @@ export default function JoinTetherScreen() {
   }
 
   return (
-    <View style={authStyles.container}>
+    <SafeAreaView style={authStyles.container} edges={["top", "bottom", "left", "right"]}>
       <Text style={authStyles.title}>Join tether</Text>
       <Text style={authStyles.subtitle}>Enter the invite code shared by your group.</Text>
 
@@ -66,6 +66,6 @@ export default function JoinTetherScreen() {
       </Pressable>
 
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }

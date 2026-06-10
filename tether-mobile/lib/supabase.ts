@@ -45,6 +45,11 @@ export type OpenWorkSession = {
   domain: string;
   url: string;
   title: string;
+  target_type: AllowedTargetType;
+  target_value: string | null;
+  target_display_name: string | null;
+  bundle_identifier: string | null;
+  platform: string | null;
 };
 
 export type WorkSession = OpenWorkSession & {
@@ -64,6 +69,7 @@ export type MemberActivity = {
 export type DailyTopDomain = {
   domain: string;
   workMs: number;
+  targetType?: AllowedTargetType;
 };
 
 export type DailyMemberLog = {
@@ -80,7 +86,31 @@ export type AllowedTarget = {
   tether_id: string;
   target_type: AllowedTargetType;
   value: string;
+  detected_tool_id: string | null;
+  display_name: string | null;
+  bundle_identifier: string | null;
+  platform: string | null;
+  metadata: Record<string, unknown>;
   created_at: string;
+};
+
+export type DetectedTool = {
+  id: string;
+  user_id: string;
+  device_id: string;
+  tool_type: AllowedTargetType;
+  value: string;
+  display_name: string;
+  tool_key: string;
+  bundle_identifier: string | null;
+  install_path: string | null;
+  platform: string;
+  metadata: Record<string, unknown>;
+  is_available: boolean;
+  detected_at: string;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

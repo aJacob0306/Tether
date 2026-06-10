@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tether Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Tether Desktop</p>
+        <h1>Discover installed apps</h1>
+        <p class="subtitle">
+          Sign in with your Tether account to register this Mac and upload installed apps
+          for mobile tether setup.
+        </p>
+      </section>
+
+      <form id="sign-in-form" class="card">
+        <label>
+          Email
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </label>
+        <label>
+          Password
+          <input
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password"
+          />
+        </label>
+        <button id="sign-in-button" type="submit">Sign in and sync apps</button>
+      </form>
+
+      <section id="signed-in-card" class="card hidden">
+        <p class="label">Signed in as</p>
+        <p id="signed-in-email" class="strong"></p>
+        <p id="device-name" class="muted"></p>
+        <button id="sync-button" type="button">Refresh detected apps</button>
+        <button id="sign-out-button" class="secondary" type="button">Sign out</button>
+      </section>
+
+      <section class="card">
+        <p class="label">Discovery status</p>
+        <p id="status" class="muted">Checking session...</p>
+      </section>
+
+      <section class="card">
+        <p class="label">Active app tracking</p>
+        <p id="tracking-status" class="muted">Sign in to start tracking allowlisted apps.</p>
+      </section>
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

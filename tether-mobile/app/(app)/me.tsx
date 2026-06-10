@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { appStyles } from "../../constants/styles";
 import { supabase, type ActiveTab } from "../../lib/supabase";
@@ -90,13 +91,46 @@ export default function MeScreen() {
   }
 
   return (
-    <View style={appStyles.container}>
-      <Pressable onPress={() => router.back()} style={{ marginBottom: 16 }}>
-        <Text style={appStyles.linkText}>Back to tethers</Text>
-      </Pressable>
+    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
+      <View style={appStyles.topBar}>
+        <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
+          <Text style={appStyles.headerIconText}>BACK</Text>
+        </Pressable>
+        <Pressable
+          style={[appStyles.headerIconButton, refreshing && appStyles.buttonDisabled]}
+          onPress={handleRefresh}
+          disabled={refreshing || tabLoading}
+        >
+          <Text style={appStyles.headerIconText}>{refreshing ? "SYNC" : "REFRESH"}</Text>
+        </Pressable>
+      </View>
 
-      <Text style={appStyles.title}>My activity</Text>
-      <Text style={appStyles.subtitle}>Active tab on your computer · updates live</Text>
+      <View style={appStyles.profileHero}>
+        <View style={appStyles.profileAvatar}>
+          <Text style={appStyles.profileAvatarText}>
+            {session.user.email?.charAt(0).toUpperCase() ?? "T"}
+          </Text>
+        </View>
+        <View style={appStyles.profileBadge}>
+          <Text style={appStyles.profileBadgeText}>Desktop telemetry</Text>
+        </View>
+        <Text style={appStyles.profileName}>My activity</Text>
+        <Text style={appStyles.profileBio}>
+          Active work from your computer appears here and updates live for the tethers
+          you belong to.
+        </Text>
+      </View>
+
+      <View style={appStyles.metricGrid}>
+        <View style={appStyles.metricCard}>
+          <Text style={appStyles.metricLabel}>Session</Text>
+          <Text style={appStyles.metricValue}>{activeTab ? "Live" : "Idle"}</Text>
+        </View>
+        <View style={appStyles.metricCard}>
+          <Text style={appStyles.metricLabel}>Source</Text>
+          <Text style={appStyles.metricValue}>Mac</Text>
+        </View>
+      </View>
 
       {tabLoading ? (
         <ActivityIndicator style={appStyles.tabLoader} size="large" />
@@ -104,6 +138,7 @@ export default function MeScreen() {
         <Text style={appStyles.error}>{tabError}</Text>
       ) : activeTab ? (
         <View style={appStyles.tabCard}>
+          <Text style={appStyles.sectionLabel}>Current Focus</Text>
           <Text style={appStyles.tabTitle}>{activeTab.title || "Untitled tab"}</Text>
           <Text style={appStyles.tabUrl}>{activeTab.url}</Text>
           <Text style={appStyles.tabUpdated}>Updated {formatUpdatedAt(activeTab.updated_at)}</Text>
@@ -114,24 +149,12 @@ export default function MeScreen() {
         </Text>
       )}
 
-      <Pressable
-        style={[appStyles.primaryButton, refreshing && appStyles.buttonDisabled]}
-        onPress={handleRefresh}
-        disabled={refreshing || tabLoading}
-      >
-        {refreshing ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={appStyles.primaryButtonText}>Refresh</Text>
-        )}
-      </Pressable>
-
       <Text style={appStyles.signedInAs}>Signed in as {session.user.email}</Text>
 
       <Pressable style={appStyles.secondaryButton} onPress={handleSignOut}>
         <Text style={appStyles.secondaryButtonText}>Sign out</Text>
       </Pressable>
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }

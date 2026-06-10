@@ -6,8 +6,8 @@ import {
   Pressable,
   Text,
   TextInput,
-  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { authStyles } from "../../constants/styles";
 import { getAuthErrorMessage } from "../../lib/auth-errors";
 import { supabase } from "../../lib/supabase";
@@ -77,7 +77,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <View style={authStyles.container}>
+    <SafeAreaView style={authStyles.container} edges={["top", "bottom", "left", "right"]}>
       <Text style={authStyles.title}>Create account</Text>
       <Text style={authStyles.subtitle}>Join Tether and stay accountable with your group.</Text>
 
@@ -149,6 +149,6 @@ export default function SignUpScreen() {
       </Link>
 
       <StatusBar style="auto" />
-    </View>
+    </SafeAreaView>
   );
 }

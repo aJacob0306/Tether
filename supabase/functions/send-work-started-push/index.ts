@@ -45,6 +45,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const domain = typeof body.domain === "string" ? body.domain.trim() : "";
+    const targetType = body.target_type === "app" ? "app" : "domain";
+    const targetLabel =
+      typeof body.target_label === "string" ? body.target_label.trim() : "";
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const { data: profile } = await supabaseAdmin
@@ -72,16 +75,25 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, sent: 0 });
     }
 
-    const messageBody = domain
-      ? `${displayName} started working on ${domain} — don't fall behind!`
-      : `${displayName} started working — don't fall behind!`;
+    const messageBody =
+      targetType === "app" && targetLabel
+        ? `${displayName} started working in ${targetLabel} — don't fall behind!`
+        : domain
+          ? `${displayName} started working on ${domain} — don't fall behind!`
+          : `${displayName} started working — don't fall behind!`;
 
     const messages = tokens.map((token) => ({
       to: token,
       sound: "default",
       title: "Tether",
       body: messageBody,
-      data: { type: "work_started", user_id: user.id, domain },
+      data: {
+        type: "work_started",
+        user_id: user.id,
+        domain,
+        target_type: targetType,
+        target_label: targetLabel,
+      },
     }));
 
     const pushResponse = await fetch(EXPO_PUSH_URL, {

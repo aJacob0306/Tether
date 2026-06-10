@@ -1,5 +1,10 @@
 import { getErrorMessage } from "./errors";
-import { supabase, type AllowedTarget, type AllowedTargetType } from "./supabase";
+import {
+  supabase,
+  type AllowedTarget,
+  type AllowedTargetType,
+  type DetectedTool,
+} from "./supabase";
 
 export function normalizeAllowlistValue(
   targetType: AllowedTargetType,
@@ -64,6 +69,45 @@ export async function addTetherAllowlistEntry(
       throw new Error("That target is already on the allowlist.");
     }
     throw new Error(getErrorMessage(error, "Failed to add allowlist entry."));
+  }
+
+  return data;
+}
+
+export async function addDetectedAppAllowlistEntry(
+  tetherId: string,
+  app: DetectedTool,
+): Promise<AllowedTarget> {
+  const value = normalizeAllowlistValue("app", app.value);
+  if (!value) {
+    throw new Error("Select an app.");
+  }
+
+  const { data, error } = await supabase
+    .from("tether_allowed_targets")
+    .insert({
+      tether_id: tetherId,
+      target_type: "app",
+      value,
+      detected_tool_id: app.id,
+      display_name: app.display_name,
+      bundle_identifier: app.bundle_identifier,
+      platform: app.platform,
+      metadata: {
+        source: "desktop_discovery",
+        installPath: app.install_path,
+        toolKey: app.tool_key,
+        ...app.metadata,
+      },
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("That app is already on the allowlist.");
+    }
+    throw new Error(getErrorMessage(error, "Failed to add app."));
   }
 
   return data;

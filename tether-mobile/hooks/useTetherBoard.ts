@@ -36,6 +36,11 @@ function openSessionFromRow(row: WorkSession | null | undefined): OpenWorkSessio
     domain: row.domain,
     url: row.url,
     title: row.title,
+    target_type: row.target_type ?? "domain",
+    target_value: row.target_value ?? row.domain,
+    target_display_name: row.target_display_name ?? row.target_value ?? row.domain,
+    bundle_identifier: row.bundle_identifier ?? null,
+    platform: row.platform ?? null,
   };
 }
 

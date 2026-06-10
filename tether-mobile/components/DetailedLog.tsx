@@ -21,17 +21,27 @@ function withLiveWork(
   if (liveWorkMs <= 0) return log;
 
   const domainTotals = new Map<string, number>();
+  const targetTypes = new Map<string, DailyTopDomain["targetType"]>();
   log.topDomains.forEach((domain) => {
     domainTotals.set(domain.domain, domain.workMs);
+    targetTypes.set(domain.domain, domain.targetType);
   });
 
+  const liveTargetLabel =
+    member.openSession.target_type === "app"
+      ? member.openSession.target_display_name ??
+        member.openSession.target_value ??
+        member.openSession.title
+      : member.openSession.domain;
+
   domainTotals.set(
-    member.openSession.domain,
-    (domainTotals.get(member.openSession.domain) ?? 0) + liveWorkMs,
+    liveTargetLabel,
+    (domainTotals.get(liveTargetLabel) ?? 0) + liveWorkMs,
   );
+  targetTypes.set(liveTargetLabel, member.openSession.target_type);
 
   const topDomains: DailyTopDomain[] = Array.from(domainTotals.entries())
-    .map(([domain, workMs]) => ({ domain, workMs }))
+    .map(([domain, workMs]) => ({ domain, workMs, targetType: targetTypes.get(domain) }))
     .sort((a, b) => b.workMs - a.workMs || a.domain.localeCompare(b.domain))
     .slice(0, 3);
 
@@ -85,14 +95,16 @@ export function DetailedLog({ logs, members, dayStart }: DetailedLogProps) {
             item.topDomains.map((domain, index) => (
               <View key={domain.domain} style={appStyles.detailDomainRow}>
                 <Text style={appStyles.detailDomainRank}>{index + 1}</Text>
-                <Text style={appStyles.detailDomainName}>{domain.domain}</Text>
+                <Text style={appStyles.detailDomainName}>
+                  {domain.targetType === "app" ? `App: ${domain.domain}` : domain.domain}
+                </Text>
                 <Text style={appStyles.detailDomainTime}>
                   {formatFocusDurationFromMs(domain.workMs)}
                 </Text>
               </View>
             ))
           ) : (
-            <Text style={appStyles.detailLogEmpty}>No domains tracked today.</Text>
+            <Text style={appStyles.detailLogEmpty}>No work targets tracked today.</Text>
           )}
         </View>
       )}

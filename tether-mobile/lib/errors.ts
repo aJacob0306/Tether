@@ -2,6 +2,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === "object" && "message" in error) {
     const message = String((error as { message: string }).message);
 
+    if (message.includes("detected_tools") || message.includes("devices")) {
+      return "Desktop discovery not set up. Run supabase/migrations/015_desktop_discovery.sql in Supabase.";
+    }
+
     if (
       message.includes("Could not find the table") ||
       (message.includes("relation") && message.includes("tethers"))
