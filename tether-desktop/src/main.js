@@ -241,6 +241,8 @@ function normalizeMatchValue(value) {
 function appMatchKey(appTarget) {
   return (
     appTarget.bundle_identifier ||
+    appTarget.metadata?.installPath ||
+    appTarget.metadata?.executable ||
     appTarget.display_name ||
     appTarget.value ||
     appTarget.id
@@ -248,7 +250,11 @@ function appMatchKey(appTarget) {
 }
 
 function executableBaseName(value) {
-  return normalizeMatchValue(value).replace(/\.exe$/i, "");
+  return normalizeMatchValue(value).split(/[\\/]/).pop()?.replace(/\.exe$/i, "") ?? "";
+}
+
+function normalizePathValue(value) {
+  return normalizeMatchValue(value).replaceAll("/", "\\");
 }
 
 async function getFrontmostApp() {
@@ -281,16 +287,30 @@ function matchesAllowedApp(activeApp, appTarget) {
   ]
     .map((value) => executableBaseName(value))
     .filter(Boolean);
+  const activePaths = [
+    activeApp.executablePath,
+  ]
+    .map((value) => normalizePathValue(value))
+    .filter(Boolean);
   const targetNames = [
     appTarget.display_name,
     appTarget.value,
     appTarget.metadata?.bundleName,
     appTarget.metadata?.executable,
+    appTarget.metadata?.installPath,
   ]
     .map((value) => executableBaseName(value))
     .filter(Boolean);
+  const targetPaths = [
+    appTarget.metadata?.installPath,
+  ]
+    .map((value) => normalizePathValue(value))
+    .filter(Boolean);
 
-  return activeNames.some((activeName) => targetNames.includes(activeName));
+  return (
+    activeNames.some((activeName) => targetNames.includes(activeName)) ||
+    activePaths.some((activePath) => targetPaths.includes(activePath))
+  );
 }
 
 function findAllowedApp(activeApp, appTargets) {
@@ -322,13 +342,41 @@ async function closeWorkSession(sessionId, endedAt = new Date().toISOString()) {
   if (error) throw error;
 }
 
-async function updateAppWorkSession(sessionId, appTarget) {
+async function upsertDesktopActiveApp(appTarget, updatedAt = new Date().toISOString()) {
+  const session = await ensureSession();
+  const label = appTarget.display_name || appTarget.value;
+  const pathSlug = encodeURIComponent(label);
+  const { error } = await supabase.from("active_tabs").upsert(
+    {
+      user_id: session.user.id,
+      url: `app://${platformAdapter.platformId}/${pathSlug}`,
+      title: label,
+      updated_at: updatedAt,
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) throw error;
+}
+
+async function clearDesktopActiveApp() {
+  const session = await ensureSession();
+  const { error } = await supabase
+    .from("active_tabs")
+    .delete()
+    .eq("user_id", session.user.id);
+
+  if (error) throw error;
+}
+
+async function updateAppWorkSession(sessionId, appTarget, updatedAt = new Date().toISOString()) {
   const label = appTarget.display_name || appTarget.value;
   const { data, error } = await supabase
     .from("work_sessions")
     .update({
       domain: label,
       title: label,
+      updated_at: updatedAt,
       target_type: "app",
       target_value: appTarget.value,
       target_display_name: label,
@@ -347,7 +395,7 @@ async function updateAppWorkSession(sessionId, appTarget) {
   return data;
 }
 
-async function startAppWorkSession(appTarget) {
+async function startAppWorkSession(appTarget, startedAt = new Date().toISOString()) {
   const session = await ensureSession();
   const label = appTarget.display_name || appTarget.value;
   const payload = {
@@ -355,6 +403,8 @@ async function startAppWorkSession(appTarget) {
     domain: label,
     url: "",
     title: label,
+    started_at: startedAt,
+    updated_at: startedAt,
     target_type: "app",
     target_value: appTarget.value,
     target_display_name: label,
@@ -477,6 +527,7 @@ async function syncActiveAppOnce() {
 
   if (isSystemIdle()) {
     await closeTrackedAppSessionIfNeeded(trackingState, idleSessionEndedAt(trackingState));
+    await clearDesktopActiveApp();
     sendTrackingStatus(`Tracking paused: ${platformAdapter.platformLabel} is idle.`);
     return;
   }
@@ -490,6 +541,7 @@ async function syncActiveAppOnce() {
 
   if (!allowedApp) {
     await closeTrackedAppSessionIfNeeded(trackingState);
+    await clearDesktopActiveApp();
     sendTrackingStatus(`No allowlisted app active (${activeApp.displayName}).`);
     return;
   }
@@ -498,7 +550,8 @@ async function syncActiveAppOnce() {
   const targetLabel = allowedApp.display_name || allowedApp.value;
 
   if (trackingState.openSessionId && trackingState.targetKey === targetKey) {
-    await updateAppWorkSession(trackingState.openSessionId, allowedApp);
+    await updateAppWorkSession(trackingState.openSessionId, allowedApp, nowIso);
+    await upsertDesktopActiveApp(allowedApp, nowIso);
     await writeJson(TRACKING_STATE_FILE, {
       ...trackingState,
       lastActiveAt: nowIso,
@@ -508,7 +561,8 @@ async function syncActiveAppOnce() {
   }
 
   await closeTrackedAppSessionIfNeeded(trackingState);
-  const workSession = await startAppWorkSession(allowedApp);
+  const workSession = await startAppWorkSession(allowedApp, nowIso);
+  await upsertDesktopActiveApp(allowedApp, nowIso);
   await writeJson(TRACKING_STATE_FILE, {
     ...trackingState,
     openSessionId: workSession.id,
@@ -540,6 +594,7 @@ async function flushTrackedSessionClose(reason) {
 
   const endedAt = idleSessionEndedAt(trackingState);
   await closeTrackedAppSessionIfNeeded(trackingState, endedAt);
+  await clearDesktopActiveApp();
   sendTrackingStatus(`Tracking paused: ${reason}.`);
 }
 
@@ -583,6 +638,7 @@ async function stopTrackingLoop() {
 
   const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
   await closeTrackedAppSessionIfNeeded(trackingState);
+  await clearDesktopActiveApp();
   sendTrackingStatus("Active app tracking stopped.");
 }
 

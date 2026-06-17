@@ -345,7 +345,17 @@ $processId = [uint32]0
 [void][TetherWin32Foreground]::GetWindowThreadProcessId($hwnd, [ref]$processId)
 if ($processId -eq 0) { exit 1 }
 $process = Get-Process -Id $processId -ErrorAction Stop
-@{ displayName = $process.ProcessName; executableName = $process.ProcessName } | ConvertTo-Json -Compress
+$executablePath = $process.Path
+$executableName = if ($executablePath) {
+  [System.IO.Path]::GetFileName($executablePath)
+} else {
+  $process.ProcessName
+}
+@{
+  displayName = $process.ProcessName
+  executableName = $executableName
+  executablePath = $executablePath
+} | ConvertTo-Json -Compress
 `;
 
 async function runPowerShell(script) {
@@ -419,6 +429,7 @@ export async function getFrontmostApp() {
 
   const displayName = String(parsed.displayName ?? "").trim();
   const executableName = String(parsed.executableName ?? displayName).trim();
+  const executablePath = String(parsed.executablePath ?? "").trim();
 
   if (!displayName) {
     throw new Error("Could not read the active Windows app.");
@@ -428,6 +439,7 @@ export async function getFrontmostApp() {
     displayName,
     bundleIdentifier: null,
     executableName: executableName || null,
+    executablePath: executablePath || null,
   };
 }
 

@@ -45,6 +45,12 @@ function displayTarget(member: MemberActivity): { label: string; preposition: st
     : null;
 }
 
+function latestTimestamp(...timestamps: Array<string | null | undefined>): string | null {
+  return timestamps
+    .filter((timestamp): timestamp is string => Boolean(timestamp))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+}
+
 export function MemberCard({ member }: MemberCardProps) {
   const target = displayTarget(member);
   const statusText = target
@@ -55,9 +61,11 @@ export function MemberCard({ member }: MemberCardProps) {
     member.status === "offline" && !member.activeTab && !member.openSession
       ? "Not synced"
       : member.openSession?.target_type === "app"
-        ? member.openSession.target_display_name ?? member.openSession.title
+        ? member.openSession.target_display_name ??
+          member.openSession.target_value ??
+          member.openSession.title
         : member.activeTab?.title || member.openSession?.title || "Untitled tab";
-  const updatedAt = member.activeTab?.updated_at ?? member.openSession?.updated_at;
+  const updatedAt = latestTimestamp(member.activeTab?.updated_at, member.openSession?.updated_at);
 
   return (
     <View style={appStyles.memberCard}>
