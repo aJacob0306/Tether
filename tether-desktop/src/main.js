@@ -1,16 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
-import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
-import { execFile } from "node:child_process";
+import { app, BrowserWindow, ipcMain, powerMonitor } from "electron";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { getPlatformAdapter } from "./platform/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const execFileAsync = promisify(execFile);
 const configPath = path.join(__dirname, "..", "config.js");
+const platformAdapter = getPlatformAdapter();
 
 async function loadConfig() {
   try {
@@ -27,22 +25,14 @@ const {
 const SUPABASE_URL = RAW_SUPABASE_URL?.trim().replace(/\/$/, "") ?? "https://example.supabase.co";
 const SUPABASE_ANON_KEY = RAW_SUPABASE_ANON_KEY?.trim() ?? "sb_publishable_missing";
 const hasSupabaseConfig = Boolean(RAW_SUPABASE_URL?.trim() && RAW_SUPABASE_ANON_KEY?.trim());
-const PLATFORM = "macos";
+const PLATFORM = platformAdapter.platformId;
 const DEVICE_TYPE = "desktop";
-const APP_DISCOVERY_ROOTS = ["/Applications", path.join(os.homedir(), "Applications")];
-const MAX_DISCOVERY_DEPTH = 3;
 const UPSERT_CHUNK_SIZE = 100;
 const TRACKING_POLL_MS = 5_000;
+const TRACKING_IDLE_CLOSE_MS = 2 * 60 * 1000;
+const TRACKING_IDLE_GRACE_MS = 30 * 1000;
 const NOTIFY_COOLDOWN_MS = 30 * 60 * 1000;
 const TRACKING_STATE_FILE = "tracking-state.json";
-const FRONTMOST_APP_SCRIPT = `
-tell application "System Events"
-  set frontApp to first application process whose frontmost is true
-  set appName to name of frontApp
-  set bundleId to bundle identifier of frontApp
-  return appName & linefeed & bundleId
-end tell
-`;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -56,6 +46,7 @@ let currentSession = null;
 let currentDevice = null;
 let trackingInterval = null;
 let trackingTickPromise = null;
+let isQuitting = false;
 
 function storePath(fileName) {
   return path.join(app.getPath("userData"), fileName);
@@ -181,7 +172,7 @@ async function registerDevice() {
         installation_id: installationId,
         platform: PLATFORM,
         device_type: DEVICE_TYPE,
-        display_name: os.hostname() || "Mac",
+        display_name: platformAdapter.deviceDisplayName(),
         app_version: app.getVersion(),
         last_seen_at: now,
       },
@@ -195,137 +186,8 @@ async function registerDevice() {
   return data;
 }
 
-async function listDirectoryEntries(directory) {
-  try {
-    return await fs.readdir(directory, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-
-async function findAppBundles(directory, depth = 0, found = []) {
-  if (depth > MAX_DISCOVERY_DEPTH) return found;
-
-  const entries = await listDirectoryEntries(directory);
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-
-    const entryPath = path.join(directory, entry.name);
-    if (entry.name.endsWith(".app")) {
-      found.push(entryPath);
-      continue;
-    }
-
-    await findAppBundles(entryPath, depth + 1, found);
-  }
-
-  return found;
-}
-
-async function readInfoPlist(appPath) {
-  const plistPath = path.join(appPath, "Contents", "Info.plist");
-  try {
-    const { stdout } = await execFileAsync("/usr/bin/plutil", [
-      "-convert",
-      "json",
-      "-o",
-      "-",
-      plistPath,
-    ]);
-    return JSON.parse(stdout);
-  } catch {
-    return {};
-  }
-}
-
-function appNameFromPath(appPath) {
-  return path.basename(appPath, ".app").trim();
-}
-
-async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveIconPath(appPath, plist) {
-  const iconFile = plist.CFBundleIconFile;
-  if (!iconFile || typeof iconFile !== "string") return null;
-
-  const resourcesPath = path.join(appPath, "Contents", "Resources");
-  const candidates = [
-    path.join(resourcesPath, iconFile),
-    path.join(resourcesPath, `${iconFile}.icns`),
-  ];
-
-  for (const candidate of candidates) {
-    if (await fileExists(candidate)) return candidate;
-  }
-
-  return null;
-}
-
-async function appIconDataUrl(appPath, plist) {
-  const iconPath = await resolveIconPath(appPath, plist);
-  if (!iconPath) return null;
-
-  const icon = nativeImage.createFromPath(iconPath);
-  if (icon.isEmpty()) return null;
-
-  return icon.resize({ width: 64, height: 64 }).toDataURL();
-}
-
-function normalizeAppBundle(appPath, plist) {
-  const displayName =
-    plist.CFBundleDisplayName ||
-    plist.CFBundleName ||
-    plist.CFBundleExecutable ||
-    appNameFromPath(appPath);
-  const bundleIdentifier = plist.CFBundleIdentifier || null;
-  const toolKey = bundleIdentifier ? `bundle:${bundleIdentifier}` : `path:${appPath}`;
-
-  return {
-    tool_type: "app",
-    value: String(displayName).trim(),
-    display_name: String(displayName).trim(),
-    tool_key: toolKey,
-    bundle_identifier: bundleIdentifier,
-    install_path: appPath,
-    platform: PLATFORM,
-    metadata: {
-      bundleName: plist.CFBundleName ?? null,
-      executable: plist.CFBundleExecutable ?? null,
-      version: plist.CFBundleShortVersionString ?? plist.CFBundleVersion ?? null,
-    },
-  };
-}
-
 async function detectInstalledApps() {
-  if (process.platform !== "darwin") {
-    throw new Error("App discovery is currently available on macOS only.");
-  }
-
-  const bundlePaths = new Set();
-  for (const root of APP_DISCOVERY_ROOTS) {
-    const apps = await findAppBundles(root);
-    apps.forEach((appPath) => bundlePaths.add(appPath));
-  }
-
-  const appsByKey = new Map();
-  for (const appPath of bundlePaths) {
-    const plist = await readInfoPlist(appPath);
-    const detectedApp = normalizeAppBundle(appPath, plist);
-    if (!detectedApp.value) continue;
-    detectedApp.metadata.iconDataUrl = await appIconDataUrl(appPath, plist);
-    appsByKey.set(detectedApp.tool_key, detectedApp);
-  }
-
-  return [...appsByKey.values()].sort((a, b) =>
-    a.display_name.localeCompare(b.display_name),
-  );
+  return platformAdapter.detectInstalledApps();
 }
 
 async function uploadDetectedApps(detectedApps) {
@@ -385,24 +247,12 @@ function appMatchKey(appTarget) {
   );
 }
 
+function executableBaseName(value) {
+  return normalizeMatchValue(value).replace(/\.exe$/i, "");
+}
+
 async function getFrontmostApp() {
-  if (process.platform !== "darwin") {
-    throw new Error("Active app tracking is currently available on macOS only.");
-  }
-
-  const { stdout } = await execFileAsync("/usr/bin/osascript", ["-e", FRONTMOST_APP_SCRIPT]);
-  const [nameLine, bundleLine] = stdout.trim().split(/\r?\n/);
-  const displayName = nameLine?.trim() ?? "";
-  const bundleIdentifier = bundleLine?.trim() ?? "";
-
-  if (!displayName) {
-    throw new Error("Could not read the active macOS app.");
-  }
-
-  return {
-    displayName,
-    bundleIdentifier: bundleIdentifier || null,
-  };
+  return platformAdapter.getFrontmostApp();
 }
 
 async function fetchAllowedAppTargets() {
@@ -425,17 +275,22 @@ function matchesAllowedApp(activeApp, appTarget) {
     return true;
   }
 
-  const activeName = normalizeMatchValue(activeApp.displayName);
+  const activeNames = [
+    activeApp.displayName,
+    activeApp.executableName,
+  ]
+    .map((value) => executableBaseName(value))
+    .filter(Boolean);
   const targetNames = [
     appTarget.display_name,
     appTarget.value,
     appTarget.metadata?.bundleName,
     appTarget.metadata?.executable,
   ]
-    .map((value) => (typeof value === "string" ? normalizeMatchValue(value) : ""))
+    .map((value) => executableBaseName(value))
     .filter(Boolean);
 
-  return targetNames.some((targetName) => targetName === activeName);
+  return activeNames.some((activeName) => targetNames.includes(activeName));
 }
 
 function findAllowedApp(activeApp, appTargets) {
@@ -458,10 +313,10 @@ async function getOpenWorkSession() {
   return data ?? null;
 }
 
-async function closeWorkSession(sessionId) {
+async function closeWorkSession(sessionId, endedAt = new Date().toISOString()) {
   const { error } = await supabase
     .from("work_sessions")
-    .update({ ended_at: new Date().toISOString() })
+    .update({ ended_at: endedAt })
     .eq("id", sessionId);
 
   if (error) throw error;
@@ -572,29 +427,66 @@ async function notifyPeersStartedApp(appTarget) {
   });
 }
 
-async function closeTrackedAppSessionIfNeeded(trackingState) {
+function getIdleMs() {
+  return powerMonitor.getSystemIdleTime() * 1000;
+}
+
+function isSystemIdle() {
+  return getIdleMs() >= TRACKING_IDLE_CLOSE_MS;
+}
+
+function idleEndedAt() {
+  const idleStartedAt = Date.now() - getIdleMs();
+  const endedAt = Math.min(Date.now(), idleStartedAt + TRACKING_IDLE_GRACE_MS);
+  return new Date(endedAt).toISOString();
+}
+
+function idleSessionEndedAt(trackingState) {
+  const sessionStartedAt = trackingState?.sessionStartedAt
+    ? new Date(trackingState.sessionStartedAt).getTime()
+    : null;
+  const idleEndAt = new Date(idleEndedAt()).getTime();
+  const endedAt =
+    sessionStartedAt && Number.isFinite(sessionStartedAt)
+      ? Math.max(sessionStartedAt, idleEndAt)
+      : idleEndAt;
+
+  return new Date(endedAt).toISOString();
+}
+
+async function closeTrackedAppSessionIfNeeded(trackingState, endedAt) {
   if (!trackingState?.openSessionId) return;
 
   try {
-    await closeWorkSession(trackingState.openSessionId);
+    await closeWorkSession(trackingState.openSessionId, endedAt);
   } finally {
     await writeJson(TRACKING_STATE_FILE, {
       ...trackingState,
       openSessionId: null,
       targetKey: null,
       targetLabel: null,
+      lastActiveAt: null,
+      sessionStartedAt: null,
     });
   }
 }
 
 async function syncActiveAppOnce() {
   await ensureSession();
+  const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
+
+  if (isSystemIdle()) {
+    await closeTrackedAppSessionIfNeeded(trackingState, idleSessionEndedAt(trackingState));
+    sendTrackingStatus(`Tracking paused: ${platformAdapter.platformLabel} is idle.`);
+    return;
+  }
+
   const [activeApp, appTargets] = await Promise.all([
     getFrontmostApp(),
     fetchAllowedAppTargets(),
   ]);
   const allowedApp = findAllowedApp(activeApp, appTargets);
-  const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
+  const nowIso = new Date().toISOString();
 
   if (!allowedApp) {
     await closeTrackedAppSessionIfNeeded(trackingState);
@@ -607,6 +499,10 @@ async function syncActiveAppOnce() {
 
   if (trackingState.openSessionId && trackingState.targetKey === targetKey) {
     await updateAppWorkSession(trackingState.openSessionId, allowedApp);
+    await writeJson(TRACKING_STATE_FILE, {
+      ...trackingState,
+      lastActiveAt: nowIso,
+    });
     sendTrackingStatus(`Tracking ${targetLabel}.`);
     return;
   }
@@ -618,6 +514,8 @@ async function syncActiveAppOnce() {
     openSessionId: workSession.id,
     targetKey,
     targetLabel,
+    lastActiveAt: nowIso,
+    sessionStartedAt: workSession.started_at ?? nowIso,
   });
 
   notifyPeersStartedApp(allowedApp).catch((error) => {
@@ -625,6 +523,36 @@ async function syncActiveAppOnce() {
   });
 
   sendTrackingStatus(`Tracking ${targetLabel}.`);
+}
+
+function closeTrackedSessionForSystemEvent(reason) {
+  flushTrackedSessionClose(reason).catch((error) => {
+    console.log("[Tether Desktop] System pause close failed:", error.message);
+  });
+}
+
+async function flushTrackedSessionClose(reason) {
+  const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
+  if (!trackingState.openSessionId) {
+    sendTrackingStatus(`Tracking paused: ${reason}.`);
+    return;
+  }
+
+  const endedAt = idleSessionEndedAt(trackingState);
+  await closeTrackedAppSessionIfNeeded(trackingState, endedAt);
+  sendTrackingStatus(`Tracking paused: ${reason}.`);
+}
+
+function setupPowerMonitorHandlers() {
+  powerMonitor.on("suspend", () =>
+    closeTrackedSessionForSystemEvent(`${platformAdapter.platformLabel} is suspending`),
+  );
+  powerMonitor.on("lock-screen", () =>
+    closeTrackedSessionForSystemEvent(`${platformAdapter.platformLabel} is locked`),
+  );
+  powerMonitor.on("shutdown", () =>
+    closeTrackedSessionForSystemEvent(`${platformAdapter.platformLabel} is shutting down`),
+  );
 }
 
 function startTrackingLoop() {
@@ -656,6 +584,15 @@ async function stopTrackingLoop() {
   const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
   await closeTrackedAppSessionIfNeeded(trackingState);
   sendTrackingStatus("Active app tracking stopped.");
+}
+
+async function closeStaleOpenWorkSessions(staleMinutes = 15) {
+  const session = await ensureSession();
+  const { error } = await supabase.rpc("close_stale_open_work_sessions", {
+    p_stale_minutes: staleMinutes,
+  });
+
+  if (error) throw error;
 }
 
 async function getStatus() {
@@ -713,8 +650,12 @@ ipcMain.handle("auth:signOut", async () => {
 ipcMain.handle("apps:sync", async () => syncDetectedApps());
 
 app.whenReady().then(async () => {
+  setupPowerMonitorHandlers();
   await loadSavedSession();
   if (currentSession) {
+    closeStaleOpenWorkSessions().catch((error) => {
+      console.log("[Tether Desktop] Stale session cleanup failed:", error.message);
+    });
     registerDevice()
       .then(() => startTrackingLoop())
       .catch(() => {});
@@ -724,6 +665,26 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
+
+  event.preventDefault();
+  isQuitting = true;
+
+  if (trackingInterval) {
+    clearInterval(trackingInterval);
+    trackingInterval = null;
+  }
+
+  flushTrackedSessionClose("Desktop companion is quitting")
+    .catch((error) => {
+      console.log("[Tether Desktop] Quit close failed:", error.message);
+    })
+    .finally(() => {
+      app.quit();
+    });
 });
 
 app.on("activate", () => {

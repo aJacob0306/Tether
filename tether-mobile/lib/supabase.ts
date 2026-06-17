@@ -79,6 +79,14 @@ export type DailyMemberLog = {
   topDomains: DailyTopDomain[];
 };
 
+export type WeeklyWorkDay = {
+  key: string;
+  label: string;
+  dayStart: Date;
+  dayEnd: Date;
+  workMs: number;
+};
+
 export type AllowedTargetType = "app" | "domain";
 
 export type AllowedTarget = {

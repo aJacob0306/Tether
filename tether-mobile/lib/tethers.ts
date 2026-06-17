@@ -9,7 +9,9 @@ import {
   type MemberActivity,
   type OpenWorkSession,
   type Tether,
+  type WeeklyWorkDay,
 } from "./supabase";
+import type { LocalWeekDayWindow } from "./status";
 
 const INVITE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -237,6 +239,32 @@ export async function fetchTetherDailyWorkTotal(
 
   if (error) {
     throw new Error(getErrorMessage(error, "Failed to load daily work timer."));
+  }
+
+  return Number(data ?? 0);
+}
+
+export async function fetchTetherWeeklyWorkTotals(
+  tetherId: string,
+  weekDays: LocalWeekDayWindow[],
+): Promise<WeeklyWorkDay[]> {
+  return Promise.all(
+    weekDays.map(async (day) => ({
+      ...day,
+      workMs: await fetchTetherDailyWorkTotal(tetherId, day.dayStart, day.dayEnd),
+    })),
+  );
+}
+
+export async function fetchTetherLifetimeWorkTotal(tetherId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("get_tether_daily_work_total", {
+    p_tether_id: tetherId,
+    p_day_start: new Date(0).toISOString(),
+    p_day_end: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(getErrorMessage(error, "Failed to load lifetime work timer."));
   }
 
   return Number(data ?? 0);

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deriveStatus, getLocalDayWindow, type LocalDayWindow } from "../lib/status";
+import {
+  deriveStatus,
+  getLocalDayWindow,
+  getLocalWeekBounds,
+  getLocalWeekDayWindows,
+  isSameLocalDay,
+  type LocalDayWindow,
+} from "../lib/status";
 import {
   supabase,
   type ActiveTab,
@@ -7,13 +14,15 @@ import {
   type MemberActivity,
   type OpenWorkSession,
   type Tether,
+  type WeeklyWorkDay,
   type WorkSession,
 } from "../lib/supabase";
 import {
   fetchTether,
   fetchTetherBoard,
   fetchTetherDailyMemberLogs,
-  fetchTetherDailyWorkTotal,
+  fetchTetherLifetimeWorkTotal,
+  fetchTetherWeeklyWorkTotals,
 } from "../lib/tethers";
 
 type TetherBoardState = {
@@ -23,7 +32,11 @@ type TetherBoardState = {
   refreshing: boolean;
   error: string;
   dailyWorkMs: number;
-  dailyMemberLogs: DailyMemberLog[];
+  lifetimeWorkMs: number;
+  weeklyWorkDays: WeeklyWorkDay[];
+  logMemberLogs: DailyMemberLog[];
+  logDayWindow: LocalDayWindow;
+  logDayLoading: boolean;
   localDayWindow: LocalDayWindow;
 };
 
@@ -58,6 +71,7 @@ function memberWithActivity(
 }
 
 export function useTetherBoard(tetherId: string | undefined) {
+  const initialDayWindow = getLocalDayWindow();
   const [state, setState] = useState<TetherBoardState>({
     tether: null,
     members: [],
@@ -65,21 +79,57 @@ export function useTetherBoard(tetherId: string | undefined) {
     refreshing: false,
     error: "",
     dailyWorkMs: 0,
-    dailyMemberLogs: [],
-    localDayWindow: getLocalDayWindow(),
+    lifetimeWorkMs: 0,
+    weeklyWorkDays: [],
+    logMemberLogs: [],
+    logDayWindow: initialDayWindow,
+    logDayLoading: false,
+    localDayWindow: initialDayWindow,
   });
-  const localDayStartRef = useRef(state.localDayWindow.dayStart.getTime());
+  const localDayStartRef = useRef(initialDayWindow.dayStart.getTime());
+  const logDayWindowRef = useRef(initialDayWindow);
+
+  const loadLogDay = useCallback(
+    async (dayWindow: LocalDayWindow) => {
+      if (!tetherId) return;
+
+      logDayWindowRef.current = dayWindow;
+      setState((prev) => ({ ...prev, logDayLoading: true }));
+
+      try {
+        const logMemberLogs = await fetchTetherDailyMemberLogs(
+          tetherId,
+          dayWindow.dayStart,
+          dayWindow.dayEnd,
+        );
+        setState((prev) => ({
+          ...prev,
+          logMemberLogs,
+          logDayWindow: dayWindow,
+          logDayLoading: false,
+        }));
+      } catch {
+        setState((prev) => ({ ...prev, logDayLoading: false }));
+      }
+    },
+    [tetherId],
+  );
 
   const loadBoard = useCallback(async () => {
     if (!tetherId) return;
 
     const localDayWindow = getLocalDayWindow();
-    const [tether, members, dailyWorkMs, dailyMemberLogs] = await Promise.all([
+    const localWeekDays = getLocalWeekDayWindows();
+    const logDayWindow = logDayWindowRef.current;
+    const [tether, members, weeklyWorkDays, lifetimeWorkMs, logMemberLogs] = await Promise.all([
       fetchTether(tetherId),
       fetchTetherBoard(tetherId),
-      fetchTetherDailyWorkTotal(tetherId, localDayWindow.dayStart, localDayWindow.dayEnd),
-      fetchTetherDailyMemberLogs(tetherId, localDayWindow.dayStart, localDayWindow.dayEnd),
+      fetchTetherWeeklyWorkTotals(tetherId, localWeekDays),
+      fetchTetherLifetimeWorkTotal(tetherId),
+      fetchTetherDailyMemberLogs(tetherId, logDayWindow.dayStart, logDayWindow.dayEnd),
     ]);
+    const dailyWorkMs =
+      weeklyWorkDays.find((day) => day.key === localDayWindow.dayStart.toISOString())?.workMs ?? 0;
 
     localDayStartRef.current = localDayWindow.dayStart.getTime();
 
@@ -88,11 +138,33 @@ export function useTetherBoard(tetherId: string | undefined) {
       tether,
       members,
       dailyWorkMs,
-      dailyMemberLogs,
+      lifetimeWorkMs,
+      weeklyWorkDays,
+      logMemberLogs,
       localDayWindow,
       error: "",
     }));
   }, [tetherId]);
+
+  const shiftLogDay = useCallback(
+    (delta: -1 | 1) => {
+      if (!tetherId) return;
+
+      const { weekStart } = getLocalWeekBounds();
+      const todayWindow = getLocalDayWindow();
+      const prevWindow = logDayWindowRef.current;
+      const nextStart = new Date(prevWindow.dayStart);
+      nextStart.setDate(nextStart.getDate() + delta);
+      const nextWindow = getLocalDayWindow(nextStart);
+
+      if (nextWindow.dayStart.getTime() < weekStart.getTime()) return;
+      if (nextWindow.dayStart.getTime() > todayWindow.dayStart.getTime()) return;
+
+      setState((prev) => ({ ...prev, logDayWindow: nextWindow, logDayLoading: true }));
+      loadLogDay(nextWindow);
+    },
+    [loadLogDay, tetherId],
+  );
 
   const refresh = useCallback(async () => {
     if (!tetherId) return;
@@ -239,8 +311,23 @@ export function useTetherBoard(tetherId: string | undefined) {
     }, 30_000);
 
     const dayBoundaryInterval = setInterval(() => {
-      const currentDayStart = getLocalDayWindow().dayStart.getTime();
+      const currentDayWindow = getLocalDayWindow();
+      const currentDayStart = currentDayWindow.dayStart.getTime();
       if (localDayStartRef.current !== currentDayStart) {
+        const previousTodayStart = localDayStartRef.current;
+        localDayStartRef.current = currentDayStart;
+
+        setState((prev) => {
+          const wasViewingToday = prev.logDayWindow.dayStart.getTime() === previousTodayStart;
+          const nextLogDayWindow = wasViewingToday ? currentDayWindow : prev.logDayWindow;
+          logDayWindowRef.current = nextLogDayWindow;
+          return {
+            ...prev,
+            logDayWindow: nextLogDayWindow,
+            localDayWindow: currentDayWindow,
+          };
+        });
+
         loadBoard().catch(() => {});
       }
     }, 60_000);
@@ -254,5 +341,15 @@ export function useTetherBoard(tetherId: string | undefined) {
     };
   }, [loadBoard, tetherId]);
 
-  return { ...state, refresh };
+  const { weekStart } = getLocalWeekBounds();
+  const canGoPreviousLogDay = state.logDayWindow.dayStart.getTime() > weekStart.getTime();
+  const canGoNextLogDay = !isSameLocalDay(state.logDayWindow.dayStart, new Date());
+
+  return {
+    ...state,
+    refresh,
+    shiftLogDay,
+    canGoPreviousLogDay,
+    canGoNextLogDay,
+  };
 }

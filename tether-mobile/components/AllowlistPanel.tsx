@@ -15,7 +15,7 @@ import {
   fetchTetherAllowlist,
   removeTetherAllowlistEntry,
 } from "../lib/allowlist";
-import { fetchDetectedApps } from "../lib/detected-tools";
+import { fetchTetherDetectedApps } from "../lib/detected-tools";
 import type { AllowedTarget, AllowedTargetType, DetectedTool } from "../lib/supabase";
 
 type AllowlistPanelProps = {
@@ -98,14 +98,14 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
     setLoadingDetectedApps(true);
     setError("");
     try {
-      const apps = await fetchDetectedApps();
+      const apps = await fetchTetherDetectedApps(tetherId);
       setDetectedApps(apps);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load detected apps.");
     } finally {
       setLoadingDetectedApps(false);
     }
-  }, [isCreator]);
+  }, [isCreator, tetherId]);
 
   useEffect(() => {
     loadDetectedApps();
@@ -251,49 +251,34 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
       <Text style={appStyles.allowlistTitle}>Work allowlist</Text>
       <Text style={appStyles.allowlistDescription}>
         Only these apps and websites count as work for this tether. The Chrome extension
-        syncs allowlisted websites; desktop apps will be supported in the desktop app.
+        syncs allowlisted websites, and the desktop companion tracks allowed desktop apps.
       </Text>
 
       {loading ? (
         <ActivityIndicator style={appStyles.tabLoader} size="large" />
       ) : (
         <>
-          {renderCurrentSection(
-            "Current apps",
-            appEntries,
-            isCreator
-              ? "No apps added to this tether yet."
-              : "The creator has not added any apps yet.",
-          )}
-
-          {renderCurrentSection(
-            "Current websites",
-            websiteEntries,
-            isCreator
-              ? "No websites added to this tether yet."
-              : "The creator has not added any websites yet.",
-          )}
-
-          {!entries.length ? (
-            <Text style={appStyles.emptyState}>
-              {isCreator
-                ? "Add apps or websites below to decide what counts as work for this tether."
-                : "The creator has not added any allowed targets yet."}
-            </Text>
-          ) : null}
-
           {isCreator ? (
             <View style={appStyles.allowlistForm}>
-              <Text style={appStyles.allowlistFormLabel}>Add detected desktop app</Text>
-              <Text style={appStyles.hint}>
-                Apps are synced from the desktop companion for this account.
-              </Text>
+              <View style={appStyles.allowlistFormHeader}>
+                <View style={appStyles.allowlistFormHeaderText}>
+                  <Text style={appStyles.allowlistFormLabel}>Add detected desktop app</Text>
+                  <Text style={appStyles.hint}>
+                    Search synced apps from the desktop companion and tap Add.
+                  </Text>
+                </View>
+                <View style={appStyles.allowlistCountBadge}>
+                  <Text style={appStyles.allowlistCountText}>
+                    {filteredDetectedApps.length}/{detectedApps.length}
+                  </Text>
+                </View>
+              </View>
 
               <TextInput
                 style={appStyles.detectedAppsSearchInput}
                 value={appSearch}
                 onChangeText={setAppSearch}
-                placeholder="Search synced apps"
+                placeholder="Search apps by name, bundle, or platform"
                 placeholderTextColor="#999"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -327,7 +312,7 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
                             </Text>
                           </View>
                           {addingDetectedAppId === app.id ? (
-                            <ActivityIndicator size="small" color="#111" />
+                            <ActivityIndicator size="small" color="#e6b4ff" />
                           ) : (
                             <Text
                               style={[
@@ -415,6 +400,30 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
                 )}
               </Pressable>
             </View>
+          ) : null}
+
+          {renderCurrentSection(
+            "Current apps",
+            appEntries,
+            isCreator
+              ? "No apps added to this tether yet."
+              : "The creator has not added any apps yet.",
+          )}
+
+          {renderCurrentSection(
+            "Current websites",
+            websiteEntries,
+            isCreator
+              ? "No websites added to this tether yet."
+              : "The creator has not added any websites yet.",
+          )}
+
+          {!entries.length ? (
+            <Text style={appStyles.emptyState}>
+              {isCreator
+                ? "Add apps or websites above to decide what counts as work for this tether."
+                : "The creator has not added any allowed targets yet."}
+            </Text>
           ) : null}
         </>
       )}

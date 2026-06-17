@@ -8,6 +8,11 @@ export type LocalDayWindow = {
   dayEnd: Date;
 };
 
+export type LocalWeekDayWindow = LocalDayWindow & {
+  key: string;
+  label: string;
+};
+
 export function getElapsedMs(startedAt: string, now = Date.now()): number {
   return Math.max(0, now - new Date(startedAt).getTime());
 }
@@ -20,6 +25,57 @@ export function getLocalDayWindow(now = new Date()): LocalDayWindow {
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   return { dayStart, dayEnd };
+}
+
+export function isSameLocalDay(a: Date, b: Date): boolean {
+  return getLocalDayWindow(a).dayStart.getTime() === getLocalDayWindow(b).dayStart.getTime();
+}
+
+export function getLocalWeekBounds(now = new Date()): { weekStart: Date; weekEnd: Date } {
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
+
+  return { weekStart, weekEnd };
+}
+
+export function formatLogDayLabel(dayStart: Date, isToday: boolean): string {
+  const formatted = dayStart.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  return isToday ? `Today · ${formatted}` : formatted;
+}
+
+export function formatLogContributionLabel(dayStart: Date, isToday: boolean): string {
+  if (isToday) return "Today's contribution";
+  const weekday = dayStart.toLocaleDateString(undefined, { weekday: "long" });
+  return `${weekday}'s contribution`;
+}
+
+export function getLocalWeekDayWindows(now = new Date()): LocalWeekDayWindow[] {
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const dayStart = new Date(weekStart);
+    dayStart.setDate(weekStart.getDate() + index);
+
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayStart.getDate() + 1);
+
+    return {
+      key: dayStart.toISOString(),
+      label: dayStart.toLocaleDateString(undefined, { weekday: "short" }),
+      dayStart,
+      dayEnd,
+    };
+  });
 }
 
 export function formatFocusDurationFromMs(ms: number): string {

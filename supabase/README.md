@@ -39,6 +39,8 @@ supabase db push
 | `014_push_notifications.sql` | `push_tokens` table, `register_push_token` RPC, `get_peer_push_tokens` for edge function |
 | `015_desktop_discovery.sql` | Desktop devices, detected app inventory, and app metadata on tether rules |
 | `016_app_work_sessions.sql` | App-aware work sessions and board/log RPC fields for desktop tracking |
+| `017_close_stale_work_sessions.sql` | `close_stale_open_work_sessions` RPC to end orphaned open sessions |
+| `018_tether_peer_detected_tools.sql` | Lets tether peers read each other's detected desktop apps for allowlist setup |
 
 Apply migrations in order.
 

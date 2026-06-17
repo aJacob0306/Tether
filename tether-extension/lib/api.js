@@ -414,3 +414,16 @@ export async function syncCurrentTab() {
   const tab = await getActiveBrowserTab();
   return syncTab(tab);
 }
+
+export async function closeStaleOpenWorkSessions(staleMinutes = 15) {
+  await authedRestRequest((authSession) =>
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/close_stale_open_work_sessions`, {
+      method: "POST",
+      headers: {
+        ...authHeaders(authSession.access_token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_stale_minutes: staleMinutes }),
+    }),
+  );
+}

@@ -3,7 +3,7 @@
   "name": "Tether",
   "version": "1.2.0",
   "description": "Sync allowlisted websites to Tether when you start working",
-  "permissions": ["tabs", "storage", "windows", "alarms"],
+  "permissions": ["tabs", "storage", "windows", "alarms", "idle"],
   "host_permissions": [
     "https://*.supabase.co/*",
     "https://*.supabase.com/*"

@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  ScrollView,
   Pressable,
   Text,
   View,
@@ -14,10 +14,12 @@ import { AllowlistPanel } from "../../../components/AllowlistPanel";
 import { MemberCard } from "../../../components/MemberCard";
 import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { DetailedLog } from "../../../components/DetailedLog";
+import { LogDayNavigator } from "../../../components/LogDayNavigator";
+import { WeeklyFocusChart } from "../../../components/WeeklyFocusChart";
 import { appStyles } from "../../../constants/styles";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
-import { formatFocusDurationFromMs, getLiveDailyFocusMs } from "../../../lib/status";
+import { formatFocusDurationFromMs, getLiveDailyFocusMs, isSameLocalDay } from "../../../lib/status";
 
 type TetherTab = "home" | "rules" | "log";
 
@@ -32,16 +34,24 @@ export default function TetherBoardScreen() {
     refreshing,
     error,
     dailyWorkMs,
-    dailyMemberLogs,
+    lifetimeWorkMs,
+    weeklyWorkDays,
+    logMemberLogs,
+    logDayWindow,
+    logDayLoading,
     localDayWindow,
     refresh,
+    shiftLogDay,
+    canGoPreviousLogDay,
+    canGoNextLogDay,
   } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TetherTab>("home");
   const isCreator = Boolean(tether && session?.user.id === tether.created_by);
   const workingMembers = members.filter((member) => member.status === "working");
-  const dailyFocusMs =
-    dailyWorkMs + getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
+  const liveDailyFocusMs = getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
+  const dailyFocusMs = dailyWorkMs + liveDailyFocusMs;
+  const lifetimeFocusMs = lifetimeWorkMs + liveDailyFocusMs;
   const dailyGoalMs = 8 * 60 * 60 * 1000;
   const dailyProgress = Math.min(100, Math.round((dailyFocusMs / dailyGoalMs) * 100));
 
@@ -69,87 +79,111 @@ export default function TetherBoardScreen() {
         <Text style={appStyles.error}>{error}</Text>
       ) : tether ? (
         <>
-          <View style={appStyles.screenHeader}>
-            <Text style={appStyles.title}>{tether.name}</Text>
-            <Text style={appStyles.subtitle}>
-              Live group activity, allowed work targets, and today's logged focus.
-            </Text>
-            <View style={appStyles.tetherCardFooter}>
-              <View style={appStyles.badge}>
-                <Text style={appStyles.badgeText}>Invite {tether.invite_code}</Text>
-              </View>
-              <View
-                style={[
-                  appStyles.badge,
-                  workingMembers.length > 0 ? appStyles.badgeActive : null,
-                ]}
-              >
-                <Text
+          <ScrollView
+            style={appStyles.tetherContent}
+            contentContainerStyle={appStyles.tetherContentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={appStyles.screenHeader}>
+              <Text style={appStyles.title}>{tether.name}</Text>
+              <Text style={appStyles.subtitle}>
+                Live group activity, allowed work targets, and today's logged focus.
+              </Text>
+              <View style={appStyles.tetherCardFooter}>
+                <View style={appStyles.badge}>
+                  <Text style={appStyles.badgeText}>Invite {tether.invite_code}</Text>
+                </View>
+                <View
                   style={[
-                    appStyles.badgeText,
-                    workingMembers.length > 0 ? appStyles.badgeActiveText : null,
+                    appStyles.badge,
+                    workingMembers.length > 0 ? appStyles.badgeActive : null,
                   ]}
                 >
-                  {workingMembers.length} working
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {activeTab === "home" ? (
-            <>
-              <View style={appStyles.metricGrid}>
-                <View style={appStyles.metricCard}>
-                  <Text style={appStyles.metricLabel}>Today</Text>
-                  <Text style={appStyles.metricValue}>
-                    {formatFocusDurationFromMs(dailyFocusMs)}
+                  <Text
+                    style={[
+                      appStyles.badgeText,
+                      workingMembers.length > 0 ? appStyles.badgeActiveText : null,
+                    ]}
+                  >
+                    {workingMembers.length} working
                   </Text>
                 </View>
+              </View>
+            </View>
+
+            {activeTab === "home" ? (
+              <>
+                <WeeklyFocusChart
+                  weekDays={weeklyWorkDays}
+                  members={members}
+                  dayStart={localDayWindow.dayStart}
+                />
+
+                <View style={appStyles.metricGrid}>
+                  <View style={appStyles.metricCard}>
+                    <Text style={appStyles.metricLabel}>Lifetime Hours Worked</Text>
+                    <Text style={appStyles.metricValue}>
+                      {formatFocusDurationFromMs(lifetimeFocusMs)}
+                    </Text>
+                  </View>
+                  <View style={appStyles.metricCard}>
+                    <Text style={appStyles.metricLabel}>Members</Text>
+                    <Text style={appStyles.metricValue}>{members.length}</Text>
+                  </View>
+                </View>
+
+                <GroupFocusTimer
+                  members={members}
+                  dailyWorkMs={dailyWorkMs}
+                  dayStart={localDayWindow.dayStart}
+                />
+
                 <View style={appStyles.metricCard}>
-                  <Text style={appStyles.metricLabel}>Members</Text>
-                  <Text style={appStyles.metricValue}>{members.length}</Text>
+                  <Text style={appStyles.metricLabel}>Goal Progress</Text>
+                  <Text style={appStyles.tetherCardTitle}>
+                    {dailyProgress}% toward an 8h group day
+                  </Text>
+                  <View style={appStyles.progressTrack}>
+                    <View style={[appStyles.progressFill, { width: `${dailyProgress}%` }]} />
+                  </View>
                 </View>
-              </View>
 
-              <GroupFocusTimer
-                members={members}
-                dailyWorkMs={dailyWorkMs}
-                dayStart={localDayWindow.dayStart}
-              />
+                {members.length === 1 ? (
+                  <Text style={appStyles.emptyState}>
+                    Share the invite code so others can join and you can see each other working.
+                  </Text>
+                ) : null}
 
-              <View style={appStyles.metricCard}>
-                <Text style={appStyles.metricLabel}>Goal Progress</Text>
-                <Text style={appStyles.tetherCardTitle}>
-                  {dailyProgress}% toward an 8h group day
-                </Text>
-                <View style={appStyles.progressTrack}>
-                  <View style={[appStyles.progressFill, { width: `${dailyProgress}%` }]} />
+                <View style={appStyles.memberList}>
+                  {members.map((member) => (
+                    <MemberCard key={member.user_id} member={member} />
+                  ))}
                 </View>
-              </View>
-
-              {members.length === 1 ? (
-                <Text style={appStyles.emptyState}>
-                  Share the invite code so others can join and you can see each other working.
-                </Text>
-              ) : null}
-
-              <FlatList
-                style={appStyles.list}
-                contentContainerStyle={appStyles.listContent}
-                data={members}
-                keyExtractor={(item) => item.user_id}
-                renderItem={({ item }) => <MemberCard member={item} />}
-              />
-            </>
-          ) : activeTab === "rules" ? (
-            <AllowlistPanel tetherId={tether.id} isCreator={isCreator} />
-          ) : (
-            <DetailedLog
-              logs={dailyMemberLogs}
-              members={members}
-              dayStart={localDayWindow.dayStart}
-            />
-          )}
+              </>
+            ) : activeTab === "rules" ? (
+              <AllowlistPanel tetherId={tether.id} isCreator={isCreator} />
+            ) : (
+              <>
+                <LogDayNavigator
+                  dayStart={logDayWindow.dayStart}
+                  weekDays={weeklyWorkDays}
+                  members={members}
+                  onPrevious={() => shiftLogDay(-1)}
+                  onNext={() => shiftLogDay(1)}
+                  canGoPrevious={canGoPreviousLogDay}
+                  canGoNext={canGoNextLogDay}
+                  loading={logDayLoading}
+                />
+                <DetailedLog
+                  logs={logMemberLogs}
+                  members={members}
+                  dayStart={logDayWindow.dayStart}
+                  isToday={isSameLocalDay(logDayWindow.dayStart, new Date())}
+                />
+              </>
+            )}
+          </ScrollView>
 
           <Pressable
             style={[appStyles.primaryButton, refreshing && appStyles.buttonDisabled]}

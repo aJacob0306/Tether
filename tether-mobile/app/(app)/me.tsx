@@ -128,7 +128,7 @@ export default function MeScreen() {
         </View>
         <View style={appStyles.metricCard}>
           <Text style={appStyles.metricLabel}>Source</Text>
-          <Text style={appStyles.metricValue}>Mac</Text>
+          <Text style={appStyles.metricValue}>Desktop / Chrome</Text>
         </View>
       </View>
 

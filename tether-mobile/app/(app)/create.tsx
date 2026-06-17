@@ -247,7 +247,7 @@ export default function CreateTetherScreen() {
           )
         ) : (
           <Text style={appStyles.emptyState}>
-            No desktop apps detected yet. Sign into the desktop companion on your Mac,
+            No desktop apps detected yet. Sign into the desktop companion on your computer,
             then refresh this list.
           </Text>
         )}

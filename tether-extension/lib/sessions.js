@@ -1,4 +1,5 @@
 import {
+  clearActiveTab,
   closeWorkSession,
   getOpenWorkSession,
   isTrackableUrl,
@@ -6,9 +7,14 @@ import {
   startWorkSession,
   updateWorkSessionTab,
 } from "./api.js";
+import {
+  idleSessionEndedAt,
+  isIdleState,
+  queryIdleState,
+  STALE_SESSION_MS,
+} from "./idle.js";
 import { notifyPeersStartedWorking } from "./notify.js";
 
-const IDLE_MS = 15 * 60 * 1000;
 const SESSION_STATE_KEY = "tether_work_session_state";
 
 const EMPTY_STATE = {
@@ -52,11 +58,11 @@ function stateFromSession(session, lastSyncAt) {
   };
 }
 
-async function closeStoredSession(state) {
+async function closeStoredSession(state, endedAt) {
   if (!state.openSessionId) return;
 
   try {
-    await closeWorkSession(state.openSessionId);
+    await closeWorkSession(state.openSessionId, endedAt);
   } catch (error) {
     console.log("[Tether] Session close failed:", error.message);
   }
@@ -101,6 +107,28 @@ async function saveAndReturnState(state) {
   return state;
 }
 
+async function resolveIdleEndedAt(state) {
+  if (!state.openSessionId) return idleSessionEndedAt();
+
+  try {
+    const session = await getOpenWorkSession();
+    return idleSessionEndedAt(session?.started_at);
+  } catch {
+    return idleSessionEndedAt();
+  }
+}
+
+export async function closeTrackingForIdle() {
+  const state = await loadSessionState();
+  const endedAt = await resolveIdleEndedAt(state);
+
+  await Promise.all([
+    closeStoredSession(state, endedAt),
+    clearSessionState(),
+    clearActiveTab().catch(() => {}),
+  ]);
+}
+
 export async function syncWorkSession(tab) {
   if (!tab?.url) return;
 
@@ -124,7 +152,7 @@ export async function syncWorkSession(tab) {
   const nowIso = new Date().toISOString();
 
   try {
-    if (state.openSessionId && msSince(state.lastSyncAt) > IDLE_MS) {
+    if (state.openSessionId && msSince(state.lastSyncAt) > STALE_SESSION_MS) {
       await closeWorkSession(state.openSessionId);
       state = { ...EMPTY_STATE };
     }
@@ -176,14 +204,25 @@ export async function syncWorkSession(tab) {
 
 export async function closeIdleWorkSessionIfNeeded() {
   const state = await loadSessionState();
-  if (!state.openSessionId || msSince(state.lastSyncAt) <= IDLE_MS) return;
+  if (!state.openSessionId) return;
 
-  await closeStoredSession(state);
-  await clearSessionState();
+  const idleState = await queryIdleState();
+  if (isIdleState(idleState)) {
+    await closeTrackingForIdle();
+    return;
+  }
+
+  if (msSince(state.lastSyncAt) <= STALE_SESSION_MS) return;
+
+  await Promise.all([
+    closeStoredSession(state),
+    clearSessionState(),
+    clearActiveTab().catch(() => {}),
+  ]);
 }
 
-export async function closeOpenWorkSession() {
+export async function closeOpenWorkSession(endedAt) {
   const state = await loadSessionState();
-  await closeStoredSession(state);
+  await closeStoredSession(state, endedAt);
   await clearSessionState();
 }

@@ -1,5 +1,7 @@
 import { refreshAllowlist } from "./lib/allowlist.js";
-import { closeIdleWorkSessionIfNeeded, closeOpenWorkSession } from "./lib/sessions.js";
+import { clearActiveTab, closeStaleOpenWorkSessions } from "./lib/api.js";
+import { closeIdleWorkSessionIfNeeded, closeOpenWorkSession, closeTrackingForIdle } from "./lib/sessions.js";
+import { IDLE_DETECTION_SECONDS, isIdleState } from "./lib/idle.js";
 import { syncActiveTab } from "./lib/sync.js";
 
 const IDLE_CHECK_ALARM = "tether-idle-check";
@@ -21,6 +23,8 @@ function syncAndLog() {
     .then((result) => {
       if (result.synced) {
         console.log("[Tether] Synced:", result.title, result.url);
+      } else if (isIdleState(result.idleState)) {
+        console.log("[Tether] Sync skipped: browser is idle or locked.");
       } else if (result.trackable && !result.hasAllowlist) {
         console.log("[Tether] Sync skipped: no allowlist configured in mobile app.");
       } else if (result.trackable && !result.allowed) {
@@ -45,7 +49,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    closeOpenWorkSession().catch(() => {});
+    Promise.all([
+      closeOpenWorkSession().catch(() => {}),
+      clearActiveTab().catch(() => {}),
+    ]).catch((error) => {
+      console.log("[Tether] Focus loss close failed:", error.message);
+    });
     return;
   }
 
@@ -72,9 +81,28 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+function closeForIdleState(state) {
+  if (!isIdleState(state)) return;
+
+  closeTrackingForIdle().catch((error) => {
+    console.log("[Tether] Idle close failed:", error.message);
+  });
+}
+
+function setupIdleDetection() {
+  if (!chrome.idle) return;
+
+  chrome.idle.setDetectionInterval(IDLE_DETECTION_SECONDS);
+  chrome.idle.onStateChanged.addListener(closeForIdleState);
+}
+
 function startup() {
   setupAlarms();
+  setupIdleDetection();
   refreshAllowlist({ force: true }).catch(() => {});
+  closeStaleOpenWorkSessions().catch((error) => {
+    console.log("[Tether] Stale session cleanup failed:", error.message);
+  });
   syncAndLog();
 }
 

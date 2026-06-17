@@ -174,13 +174,25 @@ export const appStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#0d0e0f",
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 14,
   },
   createContent: {
     paddingBottom: 32,
   },
   screenHeader: {
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  tetherContent: {
+    flex: 1,
+  },
+  tetherContentContainer: {
+    paddingBottom: 16,
+  },
+  memberList: {
+    gap: 12,
+    marginTop: 12,
   },
   groupFocusTimer: {
     borderWidth: 1,
@@ -202,6 +214,69 @@ export const appStyles = StyleSheet.create({
     color: "#a3a3a3",
     textAlign: "center",
   },
+  weeklyChartCard: {
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: "#1b1c1d",
+  },
+  weeklyChartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  weeklyChartTotal: {
+    color: "#e6b4ff",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  weeklyChartBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  weeklyChartBarColumn: {
+    flex: 1,
+    alignItems: "center",
+  },
+  weeklyChartHourLabel: {
+    color: "#9ca3af",
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  weeklyChartBarTrack: {
+    width: "100%",
+    height: 96,
+    borderRadius: 999,
+    backgroundColor: "#121314",
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  weeklyChartBarFill: {
+    width: "100%",
+    borderRadius: 999,
+    backgroundColor: "#5f435f",
+  },
+  weeklyChartBarFillToday: {
+    backgroundColor: "#945cb4",
+  },
+  weeklyChartDayLabel: {
+    color: "#6b7280",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: 8,
+    textTransform: "uppercase",
+  },
+  weeklyChartDayLabelToday: {
+    color: "#e6b4ff",
+  },
   list: {
     flex: 1,
   },
@@ -212,8 +287,49 @@ export const appStyles = StyleSheet.create({
   detailLogList: {
     flex: 1,
   },
+  logDayNav: {
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: "#1b1c1d",
+  },
+  logDayNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  logDayNavButton: {
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    backgroundColor: "#121314",
+    borderRadius: 10,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logDayNavButtonDisabled: {
+    opacity: 0.35,
+  },
+  logDayNavCenter: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  logDayNavLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  logDayNavTotal: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#e6b4ff",
+    marginTop: 4,
+  },
   detailLogContent: {
-    paddingBottom: 24,
     gap: 12,
   },
   detailLogCard: {
@@ -373,7 +489,7 @@ export const appStyles = StyleSheet.create({
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: "#2d2f31",
-    paddingTop: 12,
+    paddingTop: 10,
     marginTop: 12,
   },
   tetherTabButton: {
@@ -404,7 +520,7 @@ export const appStyles = StyleSheet.create({
     color: "#fff",
   },
   allowlistPanel: {
-    flex: 1,
+    gap: 14,
   },
   allowlistTitle: {
     fontSize: 18,
@@ -415,7 +531,6 @@ export const appStyles = StyleSheet.create({
   allowlistDescription: {
     fontSize: 14,
     color: "#9ca3af",
-    marginBottom: 16,
     lineHeight: 20,
   },
   allowlistList: {
@@ -426,7 +541,11 @@ export const appStyles = StyleSheet.create({
     gap: 10,
   },
   allowlistCurrentSection: {
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 16,
+    backgroundColor: "#151617",
+    padding: 14,
   },
   allowlistCurrentList: {
     gap: 10,
@@ -445,6 +564,7 @@ export const appStyles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     backgroundColor: "#1b1c1d",
+    gap: 10,
   },
   allowlistRowText: {
     flex: 1,
@@ -471,16 +591,41 @@ export const appStyles = StyleSheet.create({
     color: "#fca5a5",
   },
   allowlistForm: {
-    borderTopWidth: 1,
-    borderTopColor: "#2d2f31",
-    paddingTop: 16,
-    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#3a2743",
+    borderRadius: 18,
+    backgroundColor: "#17121b",
+    padding: 14,
+  },
+  allowlistFormHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 12,
+  },
+  allowlistFormHeaderText: {
+    flex: 1,
+  },
+  allowlistCountBadge: {
+    borderWidth: 1,
+    borderColor: "#4d2d5d",
+    backgroundColor: "#24162c",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  allowlistCountText: {
+    color: "#e6b4ff",
+    fontSize: 11,
+    fontWeight: "900",
   },
   allowlistFormLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#9ca3af",
-    marginBottom: 10,
+    fontWeight: "900",
+    color: "#e5e7eb",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    textTransform: "uppercase",
   },
   allowlistTypeRow: {
     flexDirection: "row",
@@ -540,8 +685,7 @@ export const appStyles = StyleSheet.create({
     fontWeight: "700",
   },
   detectedAppsList: {
-    borderTopWidth: 1,
-    borderTopColor: "#2d2f31",
+    gap: 10,
     marginBottom: 12,
   },
   selectedAppsPanel: {
@@ -577,24 +721,27 @@ export const appStyles = StyleSheet.create({
   },
   detectedAppsSearchInput: {
     borderWidth: 1,
-    borderColor: "#2d2f31",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: "#4d2d5d",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
     marginBottom: 12,
     color: "#fff",
-    backgroundColor: "#121314",
+    backgroundColor: "#0d0e0f",
   },
   detectedAppRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#2d2f31",
-    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#121314",
   },
   detectedAppRowSelected: {
     backgroundColor: "#231a28",
+    borderColor: "#4d2d5d",
   },
   detectedAppRowText: {
     flex: 1,
@@ -631,9 +778,9 @@ export const appStyles = StyleSheet.create({
     fontSize: 12,
   },
   detectedAppCheck: {
-    color: "#9ca3af",
+    color: "#e6b4ff",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "900",
   },
   detectedAppCheckSelected: {
     color: "#16a34a",
