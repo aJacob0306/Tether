@@ -6,14 +6,45 @@ Electron companion for desktop app support on **macOS and Windows**. It signs in
 
 1. Apply Supabase migrations through `018_tether_peer_detected_tools.sql`.
 2. Copy `config.example.js` to `config.js` and add your Supabase URL and publishable anon key.
-3. Install and start:
+3. Install and start **on the same machine** where you will run the app (do not copy `node_modules` from another OS):
 
 ```bash
 npm install
 npm start
 ```
 
+On Windows, use **PowerShell** or **Command Prompt** in the `tether-desktop` folder. The first `npm install` downloads the Electron binary (~100MB) for your platform.
+
 After sign-in, the app registers the desktop device, uploads detected apps, and starts watching for allowlisted foreground apps.
+
+### Windows troubleshooting
+
+**`Electron failed to install correctly`**
+
+This means the Windows Electron binary was never downloaded. Common causes:
+
+1. **`node_modules` copied from a Mac** — delete it and reinstall on Windows
+2. **`npm install` interrupted** — network drop, antivirus, or closed terminal mid-install
+3. **Blocked download** — corporate firewall/proxy
+
+Fix (PowerShell, from `tether-desktop`):
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+npm install
+npm start
+```
+
+If it still fails, retry the Electron download only:
+
+```powershell
+npm run fix-electron
+npm start
+```
+
+If you're behind a strict proxy, set `HTTPS_PROXY` before `npm install`, or ask IT to allow `https://github.com/electron/electron/releases`.
+
+Use **Node.js 20 or 22 LTS** if Node 24 causes install issues (`node -v` to check).
 
 ### macOS
 

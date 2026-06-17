@@ -5,12 +5,13 @@
   "type": "module",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "fix-electron": "node ./node_modules/electron/install.js",
+    "reinstall": "npm run clean && npm install",
+    "clean": "node -e \"require('fs').rmSync('node_modules',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.105.4"
-  },
-  "devDependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "electron": "^39.2.7"
   }
 }
