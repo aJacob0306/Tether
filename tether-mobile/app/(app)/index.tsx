@@ -72,9 +72,9 @@ export default function TetherListScreen() {
           </View>
           <Text style={appStyles.title}>Tether</Text>
         </View>
-        <Link href="/me" asChild>
+        <Link href="/settings" asChild>
           <Pressable style={appStyles.headerIconButton}>
-            <Text style={appStyles.headerIconText}>ME</Text>
+            <Text style={appStyles.headerIconText}>SET</Text>
           </Pressable>
         </Link>
       </View>

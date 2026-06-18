@@ -90,6 +90,7 @@ export async function createTether(
     const { error: memberError } = await supabase.from("tether_members").insert({
       tether_id: tether.id,
       user_id: user.id,
+      can_manage_allowlist: true,
     });
 
     if (memberError) {

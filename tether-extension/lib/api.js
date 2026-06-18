@@ -316,7 +316,7 @@ export async function clearActiveTab() {
 export async function getOpenWorkSession() {
   const { session, response } = await authedRestRequest((authSession) =>
     fetch(
-      `${SUPABASE_URL}/rest/v1/work_sessions?user_id=eq.${authSession.user.id}&ended_at=is.null&select=id,domain,url,title,started_at,ended_at&limit=1`,
+      `${SUPABASE_URL}/rest/v1/work_sessions?user_id=eq.${authSession.user.id}&ended_at=is.null&select=id,domain,url,title,started_at,updated_at,ended_at&limit=1`,
       { headers: authHeaders(authSession.access_token) },
     ),
   );
@@ -378,6 +378,15 @@ export async function updateWorkSessionTab(sessionId, { url, title }) {
 
   const rows = await response.json();
   return rows[0] ?? null;
+}
+
+export async function isChromeFocused() {
+  try {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+    return win?.focused === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getActiveBrowserTab() {

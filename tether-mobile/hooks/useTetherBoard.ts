@@ -146,16 +146,13 @@ export function useTetherBoard(tetherId: string | undefined) {
     }));
   }, [tetherId]);
 
-  const shiftLogDay = useCallback(
-    (delta: -1 | 1) => {
+  const selectLogDay = useCallback(
+    (dayStart: Date) => {
       if (!tetherId) return;
 
       const { weekStart } = getLocalWeekBounds();
       const todayWindow = getLocalDayWindow();
-      const prevWindow = logDayWindowRef.current;
-      const nextStart = new Date(prevWindow.dayStart);
-      nextStart.setDate(nextStart.getDate() + delta);
-      const nextWindow = getLocalDayWindow(nextStart);
+      const nextWindow = getLocalDayWindow(dayStart);
 
       if (nextWindow.dayStart.getTime() < weekStart.getTime()) return;
       if (nextWindow.dayStart.getTime() > todayWindow.dayStart.getTime()) return;
@@ -164,6 +161,18 @@ export function useTetherBoard(tetherId: string | undefined) {
       loadLogDay(nextWindow);
     },
     [loadLogDay, tetherId],
+  );
+
+  const shiftLogDay = useCallback(
+    (delta: -1 | 1) => {
+      if (!tetherId) return;
+
+      const prevWindow = logDayWindowRef.current;
+      const nextStart = new Date(prevWindow.dayStart);
+      nextStart.setDate(nextStart.getDate() + delta);
+      selectLogDay(nextStart);
+    },
+    [selectLogDay, tetherId],
   );
 
   const refresh = useCallback(async () => {
@@ -348,6 +357,7 @@ export function useTetherBoard(tetherId: string | undefined) {
   return {
     ...state,
     refresh,
+    selectLogDay,
     shiftLogDay,
     canGoPreviousLogDay,
     canGoNextLogDay,

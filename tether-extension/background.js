@@ -1,6 +1,10 @@
 import { refreshAllowlist } from "./lib/allowlist.js";
 import { clearActiveTab, closeStaleOpenWorkSessions } from "./lib/api.js";
-import { closeIdleWorkSessionIfNeeded, closeOpenWorkSession, closeTrackingForIdle } from "./lib/sessions.js";
+import {
+  closeIdleWorkSessionIfNeeded,
+  closeOpenWorkSession,
+  closeTrackingForIdle,
+} from "./lib/sessions.js";
 import { IDLE_DETECTION_SECONDS, isIdleState } from "./lib/idle.js";
 import { syncActiveTab } from "./lib/sync.js";
 
@@ -96,13 +100,28 @@ function setupIdleDetection() {
   chrome.idle.onStateChanged.addListener(closeForIdleState);
 }
 
-function startup() {
+function setupSuspendHandler() {
+  if (!chrome.runtime.onSuspend) return;
+
+  chrome.runtime.onSuspend.addListener(() => {
+    closeTrackingForIdle().catch((error) => {
+      console.log("[Tether] Suspend close failed:", error.message);
+    });
+  });
+}
+
+async function startup() {
   setupAlarms();
   setupIdleDetection();
+  setupSuspendHandler();
   refreshAllowlist({ force: true }).catch(() => {});
-  closeStaleOpenWorkSessions().catch((error) => {
+
+  try {
+    await closeStaleOpenWorkSessions();
+  } catch (error) {
     console.log("[Tether] Stale session cleanup failed:", error.message);
-  });
+  }
+
   syncAndLog();
 }
 

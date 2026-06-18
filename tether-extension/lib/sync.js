@@ -1,7 +1,16 @@
 import { getAllowlist, urlMatchesAllowlist } from "./allowlist.js";
-import { clearActiveTab, getActiveBrowserTab, isTrackableUrl, syncTab } from "./api.js";
+import {
+  getActiveBrowserTab,
+  isChromeFocused,
+  isTrackableUrl,
+  syncTab,
+} from "./api.js";
 import { isIdleState, queryIdleState } from "./idle.js";
-import { closeOpenWorkSession, closeTrackingForIdle, syncWorkSession } from "./sessions.js";
+import {
+  closeTrackingForBackground,
+  closeTrackingForIdle,
+  syncWorkSession,
+} from "./sessions.js";
 
 export { IDLE_DETECTION_SECONDS, isIdleState, queryIdleState } from "./idle.js";
 
@@ -11,6 +20,22 @@ async function syncActiveTabOnce() {
   const idleState = await queryIdleState();
   if (isIdleState(idleState)) {
     await closeTrackingForIdle().catch(() => {});
+
+    return {
+      tab: null,
+      trackable: false,
+      allowed: false,
+      hasAllowlist: false,
+      synced: false,
+      idleState,
+      title: "",
+      url: "",
+    };
+  }
+
+  const focused = await isChromeFocused();
+  if (!focused) {
+    await closeTrackingForBackground().catch(() => {});
 
     return {
       tab: null,
@@ -40,10 +65,7 @@ async function syncActiveTabOnce() {
     await syncWorkSession(tab);
     synced = true;
   } else {
-    await Promise.all([
-      closeOpenWorkSession().catch(() => {}),
-      clearActiveTab().catch(() => {}),
-    ]);
+    await closeTrackingForBackground().catch(() => {});
   }
 
   return {

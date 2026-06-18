@@ -54,8 +54,35 @@ function stateFromSession(session, lastSyncAt) {
   return {
     openSessionId: session.id,
     openSessionDomain: session.domain,
-    lastSyncAt,
+    lastSyncAt: lastSyncAt ?? session.updated_at ?? session.started_at,
   };
+}
+
+function staleSessionEndedAt(state, session) {
+  if (state?.lastSyncAt) return state.lastSyncAt;
+  if (session?.updated_at) return session.updated_at;
+  return idleSessionEndedAt(session?.started_at);
+}
+
+async function closeStaleSessionIfNeeded(state) {
+  if (!state.openSessionId) return { ...EMPTY_STATE };
+
+  if (msSince(state.lastSyncAt) <= STALE_SESSION_MS) return state;
+
+  let session = null;
+  try {
+    session = await getOpenWorkSession();
+  } catch {
+    // Fall back to local timestamps when the session lookup fails.
+  }
+
+  const lastActiveAt = session?.updated_at ?? state.lastSyncAt;
+  if (session?.id && msSince(lastActiveAt) <= STALE_SESSION_MS) {
+    return stateFromSession(session, state.lastSyncAt ?? lastActiveAt);
+  }
+
+  await closeWorkSession(state.openSessionId, staleSessionEndedAt(state, session));
+  return { ...EMPTY_STATE };
 }
 
 async function closeStoredSession(state, endedAt) {
@@ -152,13 +179,11 @@ export async function syncWorkSession(tab) {
   const nowIso = new Date().toISOString();
 
   try {
-    if (state.openSessionId && msSince(state.lastSyncAt) > STALE_SESSION_MS) {
-      await closeWorkSession(state.openSessionId);
-      state = { ...EMPTY_STATE };
-    }
+    state = await closeStaleSessionIfNeeded(state);
 
     if (!state.openSessionId) {
       state = await loadOpenSessionState(nowIso);
+      state = await closeStaleSessionIfNeeded(state);
     }
 
     if (!state.openSessionId) {
@@ -214,8 +239,36 @@ export async function closeIdleWorkSessionIfNeeded() {
 
   if (msSince(state.lastSyncAt) <= STALE_SESSION_MS) return;
 
+  let session = null;
+  try {
+    session = await getOpenWorkSession();
+  } catch {
+    // Fall back to local timestamps when the session lookup fails.
+  }
+
   await Promise.all([
-    closeStoredSession(state),
+    closeStoredSession(state, staleSessionEndedAt(state, session)),
+    clearSessionState(),
+    clearActiveTab().catch(() => {}),
+  ]);
+}
+
+export async function closeTrackingForBackground() {
+  const state = await loadSessionState();
+  if (!state.openSessionId) {
+    await clearActiveTab().catch(() => {});
+    return;
+  }
+
+  let session = null;
+  try {
+    session = await getOpenWorkSession();
+  } catch {
+    // Fall back to local timestamps when the session lookup fails.
+  }
+
+  await Promise.all([
+    closeStoredSession(state, staleSessionEndedAt(state, session)),
     clearSessionState(),
     clearActiveTab().catch(() => {}),
   ]);

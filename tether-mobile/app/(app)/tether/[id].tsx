@@ -10,22 +10,19 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AllowlistPanel } from "../../../components/AllowlistPanel";
 import { MemberCard } from "../../../components/MemberCard";
 import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { DetailedLog } from "../../../components/DetailedLog";
 import { LogDayNavigator } from "../../../components/LogDayNavigator";
 import { WeeklyFocusChart } from "../../../components/WeeklyFocusChart";
 import { appStyles } from "../../../constants/styles";
-import { useAuth } from "../../../contexts/AuthContext";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
 import { formatFocusDurationFromMs, getLiveDailyFocusMs, isSameLocalDay } from "../../../lib/status";
 
-type TetherTab = "home" | "rules" | "log";
+type TetherTab = "home" | "log";
 
 export default function TetherBoardScreen() {
   const router = useRouter();
-  const { session } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     tether,
@@ -41,13 +38,13 @@ export default function TetherBoardScreen() {
     logDayLoading,
     localDayWindow,
     refresh,
+    selectLogDay,
     shiftLogDay,
     canGoPreviousLogDay,
     canGoNextLogDay,
   } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TetherTab>("home");
-  const isCreator = Boolean(tether && session?.user.id === tether.created_by);
   const workingMembers = members.filter((member) => member.status === "working");
   const liveDailyFocusMs = getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
   const dailyFocusMs = dailyWorkMs + liveDailyFocusMs;
@@ -68,9 +65,17 @@ export default function TetherBoardScreen() {
         <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
           <Text style={appStyles.headerIconText}>BACK</Text>
         </Pressable>
-        <Pressable onPress={handleCopyInviteCode} style={appStyles.headerIconButton}>
-          <Text style={appStyles.headerIconText}>{copied ? "COPIED" : "CODE"}</Text>
-        </Pressable>
+        <View style={appStyles.topBarActions}>
+          <Pressable onPress={handleCopyInviteCode} style={appStyles.headerIconButton}>
+            <Text style={appStyles.headerIconText}>{copied ? "COPIED" : "CODE"}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push(`/tether/${id}/settings`)}
+            style={appStyles.headerIconButton}
+          >
+            <Text style={appStyles.headerIconText}>SET</Text>
+          </Pressable>
+        </View>
       </View>
 
       {loading ? (
@@ -88,7 +93,7 @@ export default function TetherBoardScreen() {
             <View style={appStyles.screenHeader}>
               <Text style={appStyles.title}>{tether.name}</Text>
               <Text style={appStyles.subtitle}>
-                Live group activity, allowed work targets, and today's logged focus.
+                Live group activity and today&apos;s logged focus.
               </Text>
               <View style={appStyles.tetherCardFooter}>
                 <View style={appStyles.badge}>
@@ -118,6 +123,10 @@ export default function TetherBoardScreen() {
                   weekDays={weeklyWorkDays}
                   members={members}
                   dayStart={localDayWindow.dayStart}
+                  onDayPress={(dayStart) => {
+                    selectLogDay(dayStart);
+                    setActiveTab("log");
+                  }}
                 />
 
                 <View style={appStyles.metricGrid}>
@@ -161,8 +170,6 @@ export default function TetherBoardScreen() {
                   ))}
                 </View>
               </>
-            ) : activeTab === "rules" ? (
-              <AllowlistPanel tetherId={tether.id} isCreator={isCreator} />
             ) : (
               <>
                 <LogDayNavigator
@@ -220,31 +227,6 @@ export default function TetherBoardScreen() {
                 ]}
               >
                 Home
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                appStyles.tetherTabButton,
-                activeTab === "rules" && appStyles.tetherTabButtonActive,
-              ]}
-              onPress={() => setActiveTab("rules")}
-            >
-              <Text
-                style={[
-                  appStyles.tetherTabIcon,
-                  activeTab === "rules" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                R
-              </Text>
-              <Text
-                style={[
-                  appStyles.tetherTabLabel,
-                  activeTab === "rules" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                Rules
               </Text>
             </Pressable>
 

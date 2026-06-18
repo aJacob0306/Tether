@@ -243,6 +243,9 @@ export const appStyles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
   },
+  weeklyChartBarColumnPressed: {
+    opacity: 0.7,
+  },
   weeklyChartHourLabel: {
     color: "#9ca3af",
     fontSize: 10,
@@ -472,6 +475,19 @@ export const appStyles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  headerSpacer: {
+    width: 52,
+  },
+  topBarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   linkText: {
     fontSize: 14,
@@ -1100,5 +1116,94 @@ export const appStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     textAlign: "center",
+  },
+  settingsScroll: {
+    flex: 1,
+  },
+  settingsContent: {
+    paddingBottom: 32,
+  },
+  settingsSection: {
+    marginBottom: 24,
+  },
+  settingsSectionTitle: {
+    color: "#9ca3af",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  settingsSectionFooter: {
+    color: "#6b7280",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  settingsGroup: {
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 12,
+    backgroundColor: "#1b1c1d",
+    overflow: "hidden",
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2d2f31",
+  },
+  settingsRowLast: {
+    borderBottomWidth: 0,
+  },
+  settingsRowBody: {
+    flex: 1,
+    gap: 2,
+  },
+  settingsRowLabel: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  settingsRowValue: {
+    color: "#9ca3af",
+    fontSize: 14,
+  },
+  settingsRowHint: {
+    color: "#6b7280",
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  settingsInput: {
+    borderWidth: 1,
+    borderColor: "#2d2f31",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: "#fff",
+    backgroundColor: "#121314",
+    marginTop: 6,
+  },
+  settingsRoleBadge: {
+    backgroundColor: "#2b112f",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  settingsRoleBadgeText: {
+    color: "#e6b4ff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  settingsDangerButton: {
+    marginTop: 8,
   },
 });

@@ -20,7 +20,7 @@ import type { AllowedTarget, AllowedTargetType, DetectedTool } from "../lib/supa
 
 type AllowlistPanelProps = {
   tetherId: string;
-  isCreator: boolean;
+  canManageAllowlist: boolean;
 };
 
 const TYPE_OPTIONS: { type: AllowedTargetType; label: string; hint: string }[] = [
@@ -28,7 +28,7 @@ const TYPE_OPTIONS: { type: AllowedTargetType; label: string; hint: string }[] =
   { type: "app", label: "App", hint: "Visual Studio Code" },
 ];
 
-export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
+export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelProps) {
   const [entries, setEntries] = useState<AllowedTarget[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -93,7 +93,7 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
   }, [loadAllowlist]);
 
   const loadDetectedApps = useCallback(async () => {
-    if (!isCreator) return;
+    if (!canManageAllowlist) return;
 
     setLoadingDetectedApps(true);
     setError("");
@@ -105,7 +105,7 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
     } finally {
       setLoadingDetectedApps(false);
     }
-  }, [isCreator, tetherId]);
+  }, [canManageAllowlist, tetherId]);
 
   useEffect(() => {
     loadDetectedApps();
@@ -205,7 +205,7 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
             <Text style={appStyles.detectedAppMeta}>{item.value}</Text>
           ) : null}
         </View>
-        {isCreator ? (
+        {canManageAllowlist ? (
           <Pressable
             style={[
               appStyles.allowlistRemoveButton,
@@ -258,7 +258,7 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
         <ActivityIndicator style={appStyles.tabLoader} size="large" />
       ) : (
         <>
-          {isCreator ? (
+          {canManageAllowlist ? (
             <View style={appStyles.allowlistForm}>
               <View style={appStyles.allowlistFormHeader}>
                 <View style={appStyles.allowlistFormHeaderText}>
@@ -405,24 +405,24 @@ export function AllowlistPanel({ tetherId, isCreator }: AllowlistPanelProps) {
           {renderCurrentSection(
             "Current apps",
             appEntries,
-            isCreator
+            canManageAllowlist
               ? "No apps added to this tether yet."
-              : "The creator has not added any apps yet.",
+              : "No apps have been added yet.",
           )}
 
           {renderCurrentSection(
             "Current websites",
             websiteEntries,
-            isCreator
+            canManageAllowlist
               ? "No websites added to this tether yet."
-              : "The creator has not added any websites yet.",
+              : "No websites have been added yet.",
           )}
 
           {!entries.length ? (
             <Text style={appStyles.emptyState}>
-              {isCreator
+              {canManageAllowlist
                 ? "Add apps or websites above to decide what counts as work for this tether."
-                : "The creator has not added any allowed targets yet."}
+                : "No allowed targets have been added yet."}
             </Text>
           ) : null}
         </>

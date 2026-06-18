@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { appStyles } from "../constants/styles";
 import { formatFocusDurationFromMs, getLiveDailyFocusMs } from "../lib/status";
 import type { MemberActivity, WeeklyWorkDay } from "../lib/supabase";
@@ -8,6 +8,7 @@ type WeeklyFocusChartProps = {
   weekDays: WeeklyWorkDay[];
   members: MemberActivity[];
   dayStart: Date;
+  onDayPress?: (dayStart: Date) => void;
 };
 
 const BAR_MAX_HEIGHT = 96;
@@ -19,7 +20,12 @@ function formatHours(ms: number): string {
   return `${Math.round(hours)}h`;
 }
 
-export function WeeklyFocusChart({ weekDays, members, dayStart }: WeeklyFocusChartProps) {
+export function WeeklyFocusChart({
+  weekDays,
+  members,
+  dayStart,
+  onDayPress,
+}: WeeklyFocusChartProps) {
   const [, setTick] = useState(0);
   const workingMembers = members.filter(
     (member) => member.openSession && member.status === "working",
@@ -65,7 +71,16 @@ export function WeeklyFocusChart({ weekDays, members, dayStart }: WeeklyFocusCha
             day.workMs > 0 ? Math.max(4, Math.round((day.workMs / maxWorkMs) * BAR_MAX_HEIGHT)) : 0;
 
           return (
-            <View key={day.key} style={appStyles.weeklyChartBarColumn}>
+            <Pressable
+              key={day.key}
+              style={({ pressed }) => [
+                appStyles.weeklyChartBarColumn,
+                pressed && appStyles.weeklyChartBarColumnPressed,
+              ]}
+              onPress={() => onDayPress?.(day.dayStart)}
+              accessibilityRole="button"
+              accessibilityLabel={`View log for ${day.label}, ${formatHours(day.workMs)}`}
+            >
               <Text style={appStyles.weeklyChartHourLabel}>{formatHours(day.workMs)}</Text>
               <View style={appStyles.weeklyChartBarTrack}>
                 <View
@@ -84,7 +99,7 @@ export function WeeklyFocusChart({ weekDays, members, dayStart }: WeeklyFocusCha
               >
                 {day.label}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </View>

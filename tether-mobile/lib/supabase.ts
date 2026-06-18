@@ -35,6 +35,7 @@ export type TetherMember = {
   tether_id: string;
   user_id: string;
   joined_at: string;
+  can_manage_allowlist: boolean;
 };
 
 export type WorkStatus = "working" | "idle" | "offline";
