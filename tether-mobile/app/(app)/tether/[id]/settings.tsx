@@ -1,20 +1,20 @@
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, StyleSheet, Text } from "react-native";
 import { AllowlistPanel } from "../../../../components/AllowlistPanel";
 import { MemberPermissionsPanel } from "../../../../components/MemberPermissionsPanel";
 import { SettingsRow, SettingsSection } from "../../../../components/SettingsSection";
+import {
+  AppScreen,
+  Card,
+  ErrorState,
+  LoadingState,
+  ListRow,
+  ScreenHeader,
+} from "../../../../components/ui";
 import { useAuth } from "../../../../contexts/AuthContext";
-import { appStyles } from "../../../../constants/styles";
+import { colors, spacing, typography } from "../../../../constants/theme";
 import {
   canManageAllowlist,
   fetchTetherMembers,
@@ -70,33 +70,27 @@ export default function TetherSettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
-      <View style={appStyles.topBar}>
-        <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
-          <Text style={appStyles.headerIconText}>BACK</Text>
-        </Pressable>
-        <Text style={appStyles.headerTitle}>Workspace settings</Text>
-        <View style={appStyles.headerSpacer} />
-      </View>
+    <AppScreen>
+      <ScreenHeader title="Tether settings" onBack={() => router.back()} />
 
       {loading ? (
-        <ActivityIndicator style={appStyles.tabLoader} size="large" />
+        <LoadingState message="Loading settings…" />
       ) : error ? (
-        <Text style={appStyles.error}>{error}</Text>
+        <ErrorState message={error} onRetry={loadSettings} />
       ) : tether ? (
         <ScrollView
-          style={appStyles.settingsScroll}
-          contentContainerStyle={appStyles.settingsContent}
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={appStyles.title}>{tether.name}</Text>
-          <Text style={appStyles.subtitle}>
+          <Text style={styles.title}>{tether.name}</Text>
+          <Text style={styles.subtitle}>
             {isCreator
-              ? "You created this workspace. Manage rules and member permissions below."
+              ? "You created this tether. Manage what counts as work and who can edit the rules."
               : canManage
-                ? "You can add or remove allowed apps and websites for this workspace."
-                : "View workspace details. Only admins and delegated managers can edit rules."}
+                ? "You can add or remove the apps and websites that count as work here."
+                : "These are the rules for this tether. Only admins and delegated managers can edit them."}
           </Text>
 
           <SettingsSection title="Workspace">
@@ -105,16 +99,19 @@ export default function TetherSettingsScreen() {
               label="Invite code"
               value={tether.invite_code}
               hint="Share this code so others can join"
+              last
             />
-            <Pressable
-              style={[appStyles.settingsRow, appStyles.settingsRowLast]}
-              onPress={handleCopyInviteCode}
-            >
-              <Text style={appStyles.settingsRowLabel}>
-                {copied ? "Copied to clipboard" : "Copy invite code"}
-              </Text>
-            </Pressable>
           </SettingsSection>
+
+          <Card padded={false} style={styles.copyCard}>
+            <ListRow
+              icon={copied ? "checkmark" : "copy-outline"}
+              label={copied ? "Copied to clipboard" : "Copy invite code"}
+              onPress={handleCopyInviteCode}
+              showChevron={false}
+              last
+            />
+          </Card>
 
           <SettingsSection title="Your role">
             <SettingsRow
@@ -137,9 +134,34 @@ export default function TetherSettingsScreen() {
 
           <AllowlistPanel tetherId={tether.id} canManageAllowlist={canManage} />
         </ScrollView>
-      ) : null}
-
-      <StatusBar style="auto" />
-    </SafeAreaView>
+      ) : (
+        <ErrorState
+          title="Tether not found"
+          message="This tether may have been removed or you no longer have access."
+        />
+      )}
+    </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl,
+  },
+  title: {
+    ...typography.title,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+  },
+  copyCard: {
+    marginBottom: spacing.xxl,
+  },
+});

@@ -1,25 +1,46 @@
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
   Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MemberCard } from "../../../components/MemberCard";
-import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { DetailedLog } from "../../../components/DetailedLog";
+import { GroupFocusTimer } from "../../../components/GroupFocusTimer";
 import { LogDayNavigator } from "../../../components/LogDayNavigator";
+import { MemberCard } from "../../../components/MemberCard";
 import { WeeklyFocusChart } from "../../../components/WeeklyFocusChart";
-import { appStyles } from "../../../constants/styles";
+import {
+  AppScreen,
+  Badge,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  LoadingState,
+  ScreenHeader,
+  SectionHeader,
+  StatSummaryCard,
+} from "../../../components/ui";
+import { colors, radius, spacing, typography } from "../../../constants/theme";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
-import { formatFocusDurationFromMs, getLiveDailyFocusMs, isSameLocalDay } from "../../../lib/status";
+import {
+  formatFocusDurationFromMs,
+  getLiveDailyFocusMs,
+  isSameLocalDay,
+} from "../../../lib/status";
+import type { MemberActivity, WorkStatus } from "../../../lib/supabase";
 
-type TetherTab = "home" | "log";
+type TetherTab = "board" | "log";
+
+const STATUS_ORDER: Record<WorkStatus, number> = {
+  working: 0,
+  idle: 1,
+  offline: 2,
+};
 
 export default function TetherBoardScreen() {
   const router = useRouter();
@@ -44,13 +65,23 @@ export default function TetherBoardScreen() {
     canGoNextLogDay,
   } = useTetherBoard(id);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<TetherTab>("home");
+  const [activeTab, setActiveTab] = useState<TetherTab>("board");
+
   const workingMembers = members.filter((member) => member.status === "working");
   const liveDailyFocusMs = getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
-  const dailyFocusMs = dailyWorkMs + liveDailyFocusMs;
   const lifetimeFocusMs = lifetimeWorkMs + liveDailyFocusMs;
-  const dailyGoalMs = 8 * 60 * 60 * 1000;
-  const dailyProgress = Math.min(100, Math.round((dailyFocusMs / dailyGoalMs) * 100));
+
+  const { working, quiet } = useMemo(() => {
+    const sorted = [...members].sort(
+      (a, b) =>
+        STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
+        a.display_name.localeCompare(b.display_name),
+    );
+    return {
+      working: sorted.filter((member) => member.status === "working"),
+      quiet: sorted.filter((member) => member.status !== "working"),
+    };
+  }, [members]);
 
   async function handleCopyInviteCode() {
     if (!tether?.invite_code) return;
@@ -60,65 +91,91 @@ export default function TetherBoardScreen() {
   }
 
   return (
-    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
-      <View style={appStyles.topBar}>
-        <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
-          <Text style={appStyles.headerIconText}>BACK</Text>
-        </Pressable>
-        <View style={appStyles.topBarActions}>
-          <Pressable onPress={handleCopyInviteCode} style={appStyles.headerIconButton}>
-            <Text style={appStyles.headerIconText}>{copied ? "COPIED" : "CODE"}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push(`/tether/${id}/settings`)}
-            style={appStyles.headerIconButton}
-          >
-            <Text style={appStyles.headerIconText}>SET</Text>
-          </Pressable>
-        </View>
-      </View>
+    <AppScreen>
+      <ScreenHeader
+        title={tether?.name ?? "Tether"}
+        onBack={() => router.back()}
+        right={
+          <>
+            <IconButton
+              icon={copied ? "checkmark" : "copy-outline"}
+              onPress={handleCopyInviteCode}
+              accessibilityLabel={copied ? "Invite code copied" : "Copy invite code"}
+            />
+            <IconButton
+              icon="settings-outline"
+              onPress={() => router.push(`/tether/${id}/settings`)}
+              accessibilityLabel="Tether settings"
+            />
+          </>
+        }
+      />
 
       {loading ? (
-        <ActivityIndicator style={appStyles.tabLoader} size="large" />
+        <LoadingState message="Loading tether…" />
       ) : error ? (
-        <Text style={appStyles.error}>{error}</Text>
+        <ErrorState message={error} onRetry={refresh} />
       ) : tether ? (
         <>
-          <ScrollView
-            style={appStyles.tetherContent}
-            contentContainerStyle={appStyles.tetherContentContainer}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={appStyles.screenHeader}>
-              <Text style={appStyles.title}>{tether.name}</Text>
-              <Text style={appStyles.subtitle}>
-                Live group activity and today&apos;s logged focus.
-              </Text>
-              <View style={appStyles.tetherCardFooter}>
-                <View style={appStyles.badge}>
-                  <Text style={appStyles.badgeText}>Invite {tether.invite_code}</Text>
-                </View>
-                <View
-                  style={[
-                    appStyles.badge,
-                    workingMembers.length > 0 ? appStyles.badgeActive : null,
-                  ]}
+          <View style={styles.segment} accessibilityRole="tablist">
+            {(["board", "log"] as const).map((tab) => {
+              const selected = activeTab === tab;
+              return (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={tab === "board" ? "Board" : "Activity log"}
+                  style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                 >
                   <Text
                     style={[
-                      appStyles.badgeText,
-                      workingMembers.length > 0 ? appStyles.badgeActiveText : null,
+                      styles.segmentLabel,
+                      selected && styles.segmentLabelActive,
                     ]}
                   >
-                    {workingMembers.length} working
+                    {tab === "board" ? "Board" : "Log"}
                   </Text>
-                </View>
-              </View>
-            </View>
+                </Pressable>
+              );
+            })}
+          </View>
 
-            {activeTab === "home" ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={refresh}
+                tintColor={colors.accentSoft}
+              />
+            }
+          >
+            {activeTab === "board" ? (
               <>
+                <GroupFocusTimer
+                  members={members}
+                  dailyWorkMs={dailyWorkMs}
+                  dayStart={localDayWindow.dayStart}
+                />
+
+                <View style={styles.statRow}>
+                  <StatSummaryCard
+                    icon="people-outline"
+                    label="Members"
+                    value={String(members.length)}
+                  />
+                  <StatSummaryCard
+                    icon="time-outline"
+                    label="Lifetime focus"
+                    value={formatFocusDurationFromMs(lifetimeFocusMs)}
+                  />
+                </View>
+
                 <WeeklyFocusChart
                   weekDays={weeklyWorkDays}
                   members={members}
@@ -129,46 +186,51 @@ export default function TetherBoardScreen() {
                   }}
                 />
 
-                <View style={appStyles.metricGrid}>
-                  <View style={appStyles.metricCard}>
-                    <Text style={appStyles.metricLabel}>Lifetime Hours Worked</Text>
-                    <Text style={appStyles.metricValue}>
-                      {formatFocusDurationFromMs(lifetimeFocusMs)}
+                {members.length === 1 ? (
+                  <View style={styles.inviteHint}>
+                    <Badge label={`Invite code ${tether.invite_code}`} tone="accent" icon="key-outline" />
+                    <Text style={styles.inviteHintText}>
+                      Share this code so others can join and you can see each other working.
                     </Text>
                   </View>
-                  <View style={appStyles.metricCard}>
-                    <Text style={appStyles.metricLabel}>Members</Text>
-                    <Text style={appStyles.metricValue}>{members.length}</Text>
-                  </View>
-                </View>
-
-                <GroupFocusTimer
-                  members={members}
-                  dailyWorkMs={dailyWorkMs}
-                  dayStart={localDayWindow.dayStart}
-                />
-
-                <View style={appStyles.metricCard}>
-                  <Text style={appStyles.metricLabel}>Goal Progress</Text>
-                  <Text style={appStyles.tetherCardTitle}>
-                    {dailyProgress}% toward an 8h group day
-                  </Text>
-                  <View style={appStyles.progressTrack}>
-                    <View style={[appStyles.progressFill, { width: `${dailyProgress}%` }]} />
-                  </View>
-                </View>
-
-                {members.length === 1 ? (
-                  <Text style={appStyles.emptyState}>
-                    Share the invite code so others can join and you can see each other working.
-                  </Text>
                 ) : null}
 
-                <View style={appStyles.memberList}>
-                  {members.map((member) => (
-                    <MemberCard key={member.user_id} member={member} />
-                  ))}
-                </View>
+                {working.length > 0 ? (
+                  <View style={styles.section}>
+                    <SectionHeader title="Working now" count={working.length} />
+                    <View style={styles.memberList}>
+                      {working.map((member) => (
+                        <MemberCard
+                          key={member.user_id}
+                          member={member}
+                          onPress={() =>
+                            router.push(`/tether/${id}/member/${member.user_id}`)
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {quiet.length > 0 ? (
+                  <View style={styles.section}>
+                    <SectionHeader
+                      title={working.length > 0 ? "Idle & offline" : "Members"}
+                      count={quiet.length}
+                    />
+                    <View style={styles.memberList}>
+                      {quiet.map((member) => (
+                        <MemberCard
+                          key={member.user_id}
+                          member={member}
+                          onPress={() =>
+                            router.push(`/tether/${id}/member/${member.user_id}`)
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
               </>
             ) : (
               <>
@@ -191,74 +253,80 @@ export default function TetherBoardScreen() {
               </>
             )}
           </ScrollView>
-
-          <Pressable
-            style={[appStyles.primaryButton, refreshing && appStyles.buttonDisabled]}
-            onPress={refresh}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={appStyles.primaryButtonText}>Refresh telemetry</Text>
-            )}
-          </Pressable>
-
-          <View style={appStyles.tetherTabBar}>
-            <Pressable
-              style={[
-                appStyles.tetherTabButton,
-                activeTab === "home" && appStyles.tetherTabButtonActive,
-              ]}
-              onPress={() => setActiveTab("home")}
-            >
-              <Text
-                style={[
-                  appStyles.tetherTabIcon,
-                  activeTab === "home" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                H
-              </Text>
-              <Text
-                style={[
-                  appStyles.tetherTabLabel,
-                  activeTab === "home" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                Home
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                appStyles.tetherTabButton,
-                activeTab === "log" && appStyles.tetherTabButtonActive,
-              ]}
-              onPress={() => setActiveTab("log")}
-            >
-              <Text
-                style={[
-                  appStyles.tetherTabIcon,
-                  activeTab === "log" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                L
-              </Text>
-              <Text
-                style={[
-                  appStyles.tetherTabLabel,
-                  activeTab === "log" && appStyles.tetherTabTextActive,
-                ]}
-              >
-                Log
-              </Text>
-            </Pressable>
-          </View>
         </>
-      ) : null}
-
-      <StatusBar style="auto" />
-    </SafeAreaView>
+      ) : (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Tether not found"
+          message="This tether may have been removed or you no longer have access."
+          actionLabel="Back to tethers"
+          onAction={() => router.back()}
+        />
+      )}
+    </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  segment: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+    minHeight: 40,
+    borderRadius: radius.sm,
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segmentLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  segmentLabelActive: {
+    color: colors.textPrimary,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl,
+  },
+  statRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  inviteHint: {
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    backgroundColor: colors.accentSurface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  inviteHintText: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+  section: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  memberList: {
+    gap: spacing.md,
+  },
+});

@@ -1,25 +1,48 @@
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SettingsRow, SettingsSection } from "../../components/SettingsSection";
+import {
+  AppScreen,
+  Button,
+  Card,
+  ListRow,
+  ScreenHeader,
+  SectionHeader,
+} from "../../components/ui";
 import { useAuth } from "../../contexts/AuthContext";
-import { appStyles } from "../../constants/styles";
+import { colors, radius, spacing, typography } from "../../constants/theme";
+import { fetchDetectedApps } from "../../lib/detected-tools";
 import { fetchMyProfile, updateMyDisplayName } from "../../lib/profile";
 import { supabase, type ActiveTab } from "../../lib/supabase";
 
-function formatUpdatedAt(iso: string) {
-  return new Date(iso).toLocaleString();
+function StatusText({ connected, label }: { connected: boolean; label: string }) {
+  return (
+    <View style={styles.statusText}>
+      <Ionicons
+        name={connected ? "checkmark-circle" : "ellipse-outline"}
+        size={14}
+        color={connected ? colors.workingSoft : colors.offline}
+      />
+      <Text
+        style={[
+          styles.statusTextLabel,
+          { color: connected ? colors.workingSoft : colors.textSecondary },
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 export default function SettingsScreen() {
@@ -30,12 +53,11 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
-  const [activityLoading, setActivityLoading] = useState(true);
+  const [companionConnected, setCompanionConnected] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(true);
-  const [settingsError, setSettingsError] = useState("");
 
-  const userId = session?.user.id;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const email = session?.user.email;
 
   const loadProfile = useCallback(async () => {
     setProfileError("");
@@ -49,20 +71,19 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  const loadActivity = useCallback(async () => {
-    const { data, error } = await supabase.from("active_tabs").select("*").maybeSingle();
-    if (error) {
-      setSettingsError(error.message);
-    } else {
-      setActiveTab(data);
-    }
-    setActivityLoading(false);
+  const loadConnections = useCallback(async () => {
+    const [{ data: tab }, apps] = await Promise.all([
+      supabase.from("active_tabs").select("*").maybeSingle(),
+      fetchDetectedApps().catch(() => []),
+    ]);
+    setActiveTab(tab);
+    setCompanionConnected(apps.length > 0);
   }, []);
 
   useEffect(() => {
     loadProfile();
-    loadActivity();
-  }, [loadActivity, loadProfile]);
+    loadConnections();
+  }, [loadConnections, loadProfile]);
 
   async function handleSaveDisplayName() {
     setSavingName(true);
@@ -81,136 +102,228 @@ export default function SettingsScreen() {
     await supabase.auth.signOut();
   }
 
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
+
+  const initial = displayName.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
-      <View style={appStyles.topBar}>
-        <Pressable onPress={() => router.back()} style={appStyles.headerIconButton}>
-          <Text style={appStyles.headerIconText}>BACK</Text>
-        </Pressable>
-        <Text style={appStyles.headerTitle}>Settings</Text>
-        <View style={appStyles.headerSpacer} />
-      </View>
+    <AppScreen>
+      <ScreenHeader title="Profile" onBack={() => router.back()} />
 
-      <ScrollView
-        style={appStyles.settingsScroll}
-        contentContainerStyle={appStyles.settingsContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <SettingsSection title="Account">
-          <View style={appStyles.settingsRow}>
-            <View style={appStyles.settingsRowBody}>
-              <Text style={appStyles.settingsRowLabel}>Display name</Text>
-              {profileLoading ? (
-                <ActivityIndicator size="small" color="#e6b4ff" style={{ marginTop: 8 }} />
-              ) : (
-                <>
-                  <TextInput
-                    style={appStyles.settingsInput}
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    placeholder="Your name"
-                    placeholderTextColor="#6b7280"
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                  />
-                  <Pressable
-                    style={[
-                      appStyles.secondaryButton,
-                      savingName && appStyles.buttonDisabled,
-                      { marginTop: 10 },
-                    ]}
-                    onPress={handleSaveDisplayName}
-                    disabled={savingName || !displayName.trim()}
-                  >
-                    {savingName ? (
-                      <ActivityIndicator color="#e2bae1" />
-                    ) : (
-                      <Text style={appStyles.secondaryButtonText}>Save name</Text>
-                    )}
-                  </Pressable>
-                </>
-              )}
-            </View>
+      <ScrollableContent>
+        <View style={styles.hero}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initial}</Text>
           </View>
-          <SettingsRow
-            label="Email"
-            value={session.user.email ?? "Unknown"}
-            last
-          />
-        </SettingsSection>
+          <Text style={styles.name} numberOfLines={1}>
+            {displayName.trim() || "Your name"}
+          </Text>
+          {email ? <Text style={styles.email}>{email}</Text> : null}
+        </View>
 
-        <SettingsSection
-          title="Notifications"
-          footer="Push alerts when someone in your tether starts working on an allowed app or site."
-        >
-          <SettingsRow label="Work alerts" hint="Requires a development build on iOS" last>
-            <Switch
-              value={pushEnabled}
-              onValueChange={setPushEnabled}
-              trackColor={{ false: "#2d2f31", true: "#945cb4" }}
-              thumbColor="#fff"
-            />
-          </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="Desktop activity">
-          {activityLoading ? (
-            <ActivityIndicator style={appStyles.tabLoader} size="small" />
+        <SectionHeader title="Display name" />
+        <Card>
+          {profileLoading ? (
+            <ActivityIndicator color={colors.accentSoft} />
           ) : (
             <>
-              <SettingsRow
-                label="Session"
-                value={activeTab ? "Live" : "Idle"}
+              <TextInput
+                style={styles.input}
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="Your name"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="words"
+                autoCorrect={false}
+                accessibilityLabel="Display name"
               />
-              {activeTab ? (
-                <SettingsRow
-                  label="Current focus"
-                  value={activeTab.title || "Untitled tab"}
-                  hint={activeTab.url}
-                />
-              ) : (
-                <SettingsRow
-                  label="Sync status"
-                  value="Nothing synced"
-                  hint="Use the Chrome extension or desktop companion to sync activity."
-                  last
-                />
-              )}
-              {activeTab ? (
-                <SettingsRow
-                  label="Last updated"
-                  value={formatUpdatedAt(activeTab.updated_at)}
-                  last
-                />
-              ) : null}
+              <Button
+                label="Save name"
+                variant="secondary"
+                onPress={handleSaveDisplayName}
+                loading={savingName}
+                disabled={!displayName.trim()}
+                style={styles.saveButton}
+              />
             </>
           )}
-        </SettingsSection>
+          {profileError ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {profileError}
+            </Text>
+          ) : null}
+        </Card>
 
-        <SettingsSection title="About">
-          <SettingsRow label="Version" value={appVersion} />
-          <SettingsRow
-            label="How Tether works"
-            value="Desktop companion + mobile alerts"
-            hint="Track allowed apps and sites, stay accountable with your crew."
-            last
-          />
-        </SettingsSection>
+        <View style={styles.sectionGap}>
+          <SectionHeader title="Connections" />
+          <Card padded={false}>
+            <ListRow
+              icon="laptop-outline"
+              label="Desktop companion"
+              hint="Detects and tracks your work apps"
+              onPress={() => router.push("/companion")}
+              right={
+                <StatusText
+                  connected={companionConnected}
+                  label={companionConnected ? "Connected" : "Set up"}
+                />
+              }
+              showChevron={false}
+            />
+            <ListRow
+              icon="globe-outline"
+              label="Browser extension"
+              hint="Optional — tracks allowlisted websites"
+              right={
+                <StatusText
+                  connected={Boolean(activeTab)}
+                  label={activeTab ? "Connected" : "Not connected"}
+                />
+              }
+              last
+            />
+          </Card>
+        </View>
 
-        {profileError ? <Text style={appStyles.error}>{profileError}</Text> : null}
-        {settingsError ? <Text style={appStyles.error}>{settingsError}</Text> : null}
+        <View style={styles.sectionGap}>
+          <SectionHeader title="Notifications" />
+          <Card padded={false}>
+            <ListRow
+              icon="notifications-outline"
+              label="Work alerts"
+              hint="Alerts when a teammate starts working. Requires a development build on iOS."
+              right={
+                <Switch
+                  value={pushEnabled}
+                  onValueChange={setPushEnabled}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Work alerts"
+                />
+              }
+              last
+            />
+          </Card>
+        </View>
 
-        <Pressable style={[appStyles.secondaryButton, appStyles.settingsDangerButton]} onPress={handleSignOut}>
-          <Text style={appStyles.secondaryButtonText}>Sign out</Text>
-        </Pressable>
-      </ScrollView>
+        {activeTab ? (
+          <View style={styles.sectionGap}>
+            <SectionHeader title="Current activity" />
+            <Card padded={false}>
+              <ListRow
+                icon="ellipse"
+                label="Current focus"
+                value={activeTab.title || "Untitled tab"}
+                hint={activeTab.url}
+                last
+              />
+            </Card>
+          </View>
+        ) : null}
 
-      <StatusBar style="auto" />
-    </SafeAreaView>
+        <View style={styles.sectionGap}>
+          <SectionHeader title="About" />
+          <Card padded={false}>
+            <ListRow label="Version" value={appVersion} />
+            <ListRow
+              label="How Tether works"
+              hint="Track allowed apps and sites, stay accountable with your crew."
+              last
+            />
+          </Card>
+        </View>
+
+        <Button
+          label="Sign out"
+          icon="log-out-outline"
+          variant="danger"
+          onPress={handleSignOut}
+          style={styles.signOut}
+        />
+      </ScrollableContent>
+    </AppScreen>
   );
 }
+
+function ScrollableContent({ children }: { children: React.ReactNode }) {
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl,
+  },
+  hero: {
+    alignItems: "center",
+    marginBottom: spacing.xxl,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  avatarText: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: colors.accentSoft,
+  },
+  name: {
+    ...typography.title,
+    color: colors.textPrimary,
+  },
+  email: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
+    fontSize: 16,
+    color: colors.textPrimary,
+    backgroundColor: colors.surfaceAlt,
+  },
+  saveButton: {
+    marginTop: spacing.md,
+  },
+  sectionGap: {
+    marginTop: spacing.xl,
+  },
+  statusText: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  statusTextLabel: {
+    ...typography.label,
+  },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: spacing.md,
+  },
+  signOut: {
+    marginTop: spacing.xxl,
+  },
+});

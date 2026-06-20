@@ -1,14 +1,16 @@
 import { Link, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
+  StyleSheet,
   Text,
-  TextInput,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { authStyles } from "../../constants/styles";
+import { AppScreen, Button, TextInputField } from "../../components/ui";
+import { colors, radius, spacing, typography } from "../../constants/theme";
 import { getAuthErrorMessage } from "../../lib/auth-errors";
 import { supabase } from "../../lib/supabase";
 
@@ -29,17 +31,14 @@ export default function SignUpScreen() {
       setError("Enter your display name.");
       return;
     }
-
     if (!trimmedEmail || !password) {
       setError("Enter your email and password.");
       return;
     }
-
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
     }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -47,15 +46,11 @@ export default function SignUpScreen() {
 
     setSigningUp(true);
     setError("");
-
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,
       password,
-      options: {
-        data: { display_name: trimmedName },
-      },
+      options: { data: { display_name: trimmedName } },
     });
-
     setSigningUp(false);
 
     if (signUpError) {
@@ -70,85 +65,141 @@ export default function SignUpScreen() {
       return;
     }
 
-    router.replace({
-      pathname: "/check-email",
-      params: { email: trimmedEmail },
-    });
+    router.replace({ pathname: "/check-email", params: { email: trimmedEmail } });
   }
 
   return (
-    <SafeAreaView style={authStyles.container} edges={["top", "bottom", "left", "right"]}>
-      <Text style={authStyles.title}>Create account</Text>
-      <Text style={authStyles.subtitle}>Join Tether and stay accountable with your group.</Text>
-
-      <Text style={authStyles.label}>Display name</Text>
-      <TextInput
-        style={authStyles.input}
-        value={displayName}
-        onChangeText={setDisplayName}
-        autoCapitalize="words"
-        autoComplete="name"
-        placeholder="Alex"
-        placeholderTextColor="#999"
-      />
-
-      <Text style={authStyles.label}>Email</Text>
-      <TextInput
-        style={authStyles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoComplete="email"
-        keyboardType="email-address"
-        placeholder="you@example.com"
-        placeholderTextColor="#999"
-      />
-
-      <Text style={authStyles.label}>Password</Text>
-      <TextInput
-        style={authStyles.input}
-        value={password}
-        onChangeText={setPassword}
-        autoComplete="new-password"
-        secureTextEntry
-        placeholder="At least 6 characters"
-        placeholderTextColor="#999"
-      />
-
-      <Text style={authStyles.label}>Confirm password</Text>
-      <TextInput
-        style={authStyles.input}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        autoComplete="new-password"
-        secureTextEntry
-        placeholder="Repeat password"
-        placeholderTextColor="#999"
-      />
-
-      <Pressable
-        style={[authStyles.primaryButton, signingUp && authStyles.buttonDisabled]}
-        onPress={handleSignUp}
-        disabled={signingUp}
+    <AppScreen>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {signingUp ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={authStyles.primaryButtonText}>Create account</Text>
-        )}
-      </Pressable>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.hero}>
+            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.subtitle}>
+              Join Tether and turn focused work into shared momentum with your group.
+            </Text>
+          </View>
 
-      {error ? <Text style={authStyles.error}>{error}</Text> : null}
+          <TextInputField
+            label="Display name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            autoCapitalize="words"
+            autoComplete="name"
+            placeholder="Alex"
+            textContentType="name"
+          />
 
-      <Link href="/login" asChild>
-        <Pressable style={authStyles.linkButton}>
-          <Text style={authStyles.linkText}>
-            Already have an account? <Text style={authStyles.linkTextBold}>Sign in</Text>
-          </Text>
-        </Pressable>
-      </Link>
+          <TextInputField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            placeholder="you@example.com"
+            textContentType="emailAddress"
+          />
 
-      <StatusBar style="auto" />
-    </SafeAreaView>
+          <TextInputField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            autoComplete="new-password"
+            secureTextEntry
+            placeholder="At least 6 characters"
+            hint="Use at least 6 characters."
+            textContentType="newPassword"
+          />
+
+          <TextInputField
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            autoComplete="new-password"
+            secureTextEntry
+            placeholder="Repeat password"
+            textContentType="newPassword"
+          />
+
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {error}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Create account"
+            onPress={handleSignUp}
+            loading={signingUp}
+            style={styles.submit}
+          />
+
+          <Link href="/login" asChild>
+            <Pressable
+              style={styles.switchLink}
+              accessibilityRole="link"
+              accessibilityLabel="Sign in to an existing account"
+            >
+              <Text style={styles.switchText}>
+                Already have an account?{" "}
+                <Text style={styles.switchTextBold}>Sign in</Text>
+              </Text>
+            </Pressable>
+          </Link>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: spacing.xxl,
+  },
+  hero: {
+    marginBottom: spacing.xl,
+  },
+  title: {
+    ...typography.display,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    marginBottom: spacing.md,
+  },
+  submit: {
+    marginTop: spacing.sm,
+  },
+  switchLink: {
+    marginTop: spacing.xl,
+    alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  switchText: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+  switchTextBold: {
+    color: colors.accentSoft,
+    fontWeight: "700",
+  },
+});

@@ -23,7 +23,9 @@ function generateInviteCode(length = 8): string {
   return code;
 }
 
-export async function fetchMyTethers(): Promise<Tether[]> {
+export type TetherSummary = Tether & { memberCount: number };
+
+export async function fetchMyTethers(): Promise<TetherSummary[]> {
   const { data, error } = await supabase
     .from("tether_members")
     .select("tethers(*)")
@@ -41,7 +43,33 @@ export async function fetchMyTethers(): Promise<Tether[]> {
     .filter((tether): tether is Tether => tether != null)
     .forEach((tether) => uniqueTethers.set(tether.id, tether));
 
-  return Array.from(uniqueTethers.values());
+  const tethers = Array.from(uniqueTethers.values());
+  const memberCounts = await fetchTetherMemberCounts(tethers.map((tether) => tether.id));
+
+  return tethers.map((tether) => ({
+    ...tether,
+    memberCount: memberCounts.get(tether.id) ?? 1,
+  }));
+}
+
+async function fetchTetherMemberCounts(
+  tetherIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (tetherIds.length === 0) return counts;
+
+  const { data, error } = await supabase
+    .from("tether_members")
+    .select("tether_id")
+    .in("tether_id", tetherIds);
+
+  if (error) return counts;
+
+  (data ?? []).forEach((row: { tether_id: string }) => {
+    counts.set(row.tether_id, (counts.get(row.tether_id) ?? 0) + 1);
+  });
+
+  return counts;
 }
 
 function uniqueDetectedApps(apps: DetectedTool[]): DetectedTool[] {

@@ -1,27 +1,37 @@
-import { Link, useFocusEffect, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { appStyles } from "../../constants/styles";
-import type { Tether } from "../../lib/supabase";
-import { fetchMyTethers } from "../../lib/tethers";
+import {
+  AppScreen,
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  LoadingState,
+  SectionHeader,
+} from "../../components/ui";
+import { colors, radius, spacing, typography } from "../../constants/theme";
+import { fetchMyTethers, type TetherSummary } from "../../lib/tethers";
+
+type SortKey = "recent" | "name";
 
 export default function TetherListScreen() {
   const router = useRouter();
-  const [tethers, setTethers] = useState<Tether[]>([]);
+  const [tethers, setTethers] = useState<TetherSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<"recent" | "name" | "code">("recent");
+  const [sortBy, setSortBy] = useState<SortKey>("recent");
 
   const loadTethers = useCallback(async () => {
     setError("");
@@ -54,166 +64,329 @@ export default function TetherListScreen() {
 
     return matches.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
-      if (sortBy === "code") return a.invite_code.localeCompare(b.invite_code);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [searchQuery, sortBy, tethers]);
 
-  function tetherInitial(name: string) {
-    return name.trim().charAt(0).toUpperCase() || "T";
-  }
+  const hasTethers = tethers.length > 0;
 
   return (
-    <SafeAreaView style={appStyles.screen} edges={["top", "bottom", "left", "right"]}>
-      <View style={appStyles.topBar}>
-        <View style={appStyles.brandRow}>
-          <View style={appStyles.brandMark}>
-            <Text style={appStyles.brandMarkText}>T</Text>
+    <AppScreen>
+      <View style={styles.header}>
+        <View style={styles.brandRow}>
+          <View style={styles.brandMark}>
+            <Text style={styles.brandMarkText}>T</Text>
           </View>
-          <Text style={appStyles.title}>Tether</Text>
+          <View>
+            <Text style={styles.brandTitle}>Tether</Text>
+            <Text style={styles.brandSubtitle}>Your accountability spaces</Text>
+          </View>
         </View>
-        <Link href="/settings" asChild>
-          <Pressable style={appStyles.headerIconButton}>
-            <Text style={appStyles.headerIconText}>SET</Text>
-          </Pressable>
-        </Link>
-      </View>
-
-      <Text style={appStyles.subtitle}>
-        Private workspaces where your crew can see who is focused and what is being tracked.
-      </Text>
-
-      <View style={appStyles.actionStack}>
-        <Pressable
-          style={[appStyles.actionCard, appStyles.actionCardCompact]}
-          onPress={() => router.push("/create")}
-        >
-          <View style={[appStyles.actionIcon, appStyles.actionIconCompact]}>
-            <Text style={appStyles.actionIconText}>+</Text>
-          </View>
-          <View style={appStyles.actionBody}>
-            <Text style={appStyles.actionTitle}>Create Tether</Text>
-            <Text style={appStyles.actionSubtitle}>Start a new private workspace</Text>
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={[appStyles.actionCard, appStyles.actionCardCompact]}
-          onPress={() => router.push("/join")}
-        >
-          <View
-            style={[
-              appStyles.actionIcon,
-              appStyles.actionIconSecondary,
-              appStyles.actionIconCompact,
-            ]}
-          >
-            <Text style={appStyles.actionIconText}>J</Text>
-          </View>
-          <View style={appStyles.actionBody}>
-            <Text style={appStyles.actionTitle}>Join Tether</Text>
-            <Text style={appStyles.actionSubtitle}>Enter an invite code from your group</Text>
-          </View>
-        </Pressable>
-      </View>
-
-      <View style={appStyles.searchRow}>
-        <TextInput
-          style={appStyles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search active tethers..."
-          placeholderTextColor="#6b7280"
-          autoCapitalize="none"
-          autoCorrect={false}
+        <IconButton
+          icon="person-circle-outline"
+          onPress={() => router.push("/settings")}
+          accessibilityLabel="Profile and settings"
+          size={24}
         />
-        <Pressable
-          style={[appStyles.filterButton, showFilters && appStyles.filterButtonActive]}
-          onPress={() => setShowFilters((shown) => !shown)}
-        >
-          <Text
-            style={[
-              appStyles.filterButtonText,
-              showFilters && appStyles.filterButtonTextActive,
-            ]}
-          >
-            F
-          </Text>
-        </Pressable>
       </View>
 
-      {showFilters ? (
-        <View style={appStyles.filterPanel}>
-          <Text style={appStyles.sectionLabel}>Workspace Order</Text>
-          <View style={appStyles.sortRow}>
-            {(["recent", "name", "code"] as const).map((sort) => (
-              <Pressable
-                key={sort}
-                style={[appStyles.sortChip, sortBy === sort && appStyles.sortChipActive]}
-                onPress={() => setSortBy(sort)}
-              >
-                <Text
-                  style={[
-                    appStyles.sortChipText,
-                    sortBy === sort && appStyles.sortChipTextActive,
-                  ]}
-                >
-                  {sort}
-                </Text>
-              </Pressable>
-            ))}
+      <View style={styles.actionRow}>
+        <Card
+          style={styles.actionCard}
+          onPress={() => router.push("/create")}
+          accessibilityLabel="Create tether"
+          accessibilityHint="Start a new private workspace"
+        >
+          <View style={styles.actionIcon}>
+            <Ionicons name="add" size={24} color={colors.accentSoft} />
           </View>
-        </View>
-      ) : null}
+          <Text style={styles.actionTitle}>Create</Text>
+          <Text style={styles.actionSubtitle}>Start a new space</Text>
+        </Card>
 
-      <Text style={appStyles.sectionLabel}>Active Tethers ({visibleTethers.length})</Text>
+        <Card
+          style={styles.actionCard}
+          onPress={() => router.push("/join")}
+          accessibilityLabel="Join tether"
+          accessibilityHint="Enter an invite code from your group"
+        >
+          <View style={[styles.actionIcon, styles.actionIconSecondary]}>
+            <Ionicons name="enter-outline" size={22} color={colors.accentSoft} />
+          </View>
+          <Text style={styles.actionTitle}>Join</Text>
+          <Text style={styles.actionSubtitle}>Enter an invite code</Text>
+        </Card>
+      </View>
 
       {loading ? (
-        <ActivityIndicator style={appStyles.tabLoader} size="large" />
+        <LoadingState message="Loading your tethers…" />
       ) : error ? (
-        <Text style={appStyles.error}>{error}</Text>
+        <ErrorState message={error} onRetry={loadTethers} />
+      ) : !hasTethers ? (
+        <EmptyState
+          icon="people-outline"
+          title="No tethers yet"
+          message="Create your first tether or join one with an invite code to start working alongside your crew."
+          actionLabel="Create a tether"
+          onAction={() => router.push("/create")}
+        />
       ) : (
-        <FlatList
-          style={appStyles.list}
-          contentContainerStyle={appStyles.listContent}
-          data={visibleTethers}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
-          ListEmptyComponent={
-            <Text style={appStyles.emptyState}>
-              No tethers match your search. Create one or join with an invite code.
-            </Text>
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              style={appStyles.tetherCard}
-              onPress={() => router.push(`/tether/${item.id}`)}
-            >
-              <View style={appStyles.tetherCardRow}>
-                <View style={appStyles.tetherAvatar}>
-                  <Text style={appStyles.tetherAvatarText}>{tetherInitial(item.name)}</Text>
-                </View>
-                <View style={appStyles.tetherCardBody}>
-                  <Text style={appStyles.tetherCardTitle}>{item.name}</Text>
-                  <Text style={appStyles.tetherCardMeta}>Invite code {item.invite_code}</Text>
-                </View>
-                <Text style={appStyles.cardChevron}>{">"}</Text>
+        <>
+          {tethers.length > 3 ? (
+            <View style={styles.searchRow}>
+              <View style={styles.searchInputWrap}>
+                <Ionicons name="search" size={16} color={colors.textTertiary} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search tethers"
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Search tethers"
+                />
               </View>
-              <View style={appStyles.tetherCardFooter}>
-                <View style={[appStyles.badge, appStyles.badgeActive]}>
-                  <Text style={[appStyles.badgeText, appStyles.badgeActiveText]}>
-                    Connected
+              <IconButton
+                icon="swap-vertical"
+                onPress={() => setShowFilters((shown) => !shown)}
+                accessibilityLabel="Sort tethers"
+              />
+            </View>
+          ) : null}
+
+          {showFilters ? (
+            <View style={styles.sortRow}>
+              {(["recent", "name"] as const).map((sort) => {
+                const active = sortBy === sort;
+                return (
+                  <Pressable
+                    key={sort}
+                    onPress={() => setSortBy(sort)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={[styles.sortChip, active && styles.sortChipActive]}
+                  >
+                    <Text
+                      style={[styles.sortChipText, active && styles.sortChipTextActive]}
+                    >
+                      {sort === "recent" ? "Most recent" : "Name"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <SectionHeader title="Your tethers" count={visibleTethers.length} />
+
+          <FlatList
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            data={visibleTethers}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <Text style={styles.noMatch}>
+                No tethers match “{searchQuery.trim()}”.
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <Card
+                onPress={() => router.push(`/tether/${item.id}`)}
+                accessibilityLabel={`${item.name}, ${item.memberCount} ${
+                  item.memberCount === 1 ? "member" : "members"
+                }`}
+                accessibilityHint="Open tether board"
+                style={styles.tetherCard}
+              >
+                <View style={styles.tetherAvatar}>
+                  <Text style={styles.tetherAvatarText}>
+                    {item.name.trim().charAt(0).toUpperCase() || "T"}
                   </Text>
                 </View>
-                <View style={appStyles.badge}>
-                  <Text style={appStyles.badgeText}>Live telemetry</Text>
+                <View style={styles.tetherBody}>
+                  <Text style={styles.tetherName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <View style={styles.tetherMetaRow}>
+                    <Badge
+                      label={`${item.memberCount} ${
+                        item.memberCount === 1 ? "member" : "members"
+                      }`}
+                      icon="people-outline"
+                    />
+                    <Badge label={item.invite_code} icon="key-outline" tone="accent" />
+                  </View>
                 </View>
-              </View>
-            </Pressable>
-          )}
-        />
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </Card>
+            )}
+          />
+        </>
       )}
-
-      <StatusBar style="auto" />
-    </SafeAreaView>
+    </AppScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.xl,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  brandMark: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandMarkText: {
+    ...typography.heading,
+    color: colors.accentSoft,
+  },
+  brandTitle: {
+    ...typography.title,
+    color: colors.textPrimary,
+  },
+  brandSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  actionCard: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.accentSurface,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  actionIconSecondary: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+  },
+  actionTitle: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  actionSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  searchRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  searchInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 44,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 15,
+    paddingVertical: spacing.sm,
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  sortChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  sortChipActive: {
+    backgroundColor: colors.accentSurface,
+    borderColor: colors.accentBorder,
+  },
+  sortChipText: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  sortChipTextActive: {
+    color: colors.accentSoft,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  noMatch: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: spacing.xl,
+  },
+  tetherCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  tetherAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tetherAvatarText: {
+    ...typography.heading,
+    color: colors.accentSoft,
+  },
+  tetherBody: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  tetherName: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  tetherMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+});
