@@ -32,6 +32,7 @@ const TRACKING_POLL_MS = 5_000;
 const TRACKING_IDLE_CLOSE_MS = 2 * 60 * 1000;
 const TRACKING_IDLE_GRACE_MS = 30 * 1000;
 const NOTIFY_COOLDOWN_MS = 30 * 60 * 1000;
+const DEVICE_HEARTBEAT_MS = 60 * 1000;
 const TRACKING_STATE_FILE = "tracking-state.json";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -47,6 +48,7 @@ let currentDevice = null;
 let trackingInterval = null;
 let trackingTickPromise = null;
 let isQuitting = false;
+let lastDeviceHeartbeatAt = 0;
 
 function storePath(fileName) {
   return path.join(app.getPath("userData"), fileName);
@@ -184,6 +186,37 @@ async function registerDevice() {
   if (error) throw error;
   currentDevice = data;
   return data;
+}
+
+async function touchCurrentDeviceHeartbeatIfNeeded() {
+  if (!currentDevice?.id) return;
+
+  const nowMs = Date.now();
+  if (nowMs - lastDeviceHeartbeatAt < DEVICE_HEARTBEAT_MS) return;
+
+  lastDeviceHeartbeatAt = nowMs;
+  const session = await ensureSession();
+  const now = new Date(nowMs).toISOString();
+  const { data, error } = await supabase
+    .from("devices")
+    .update({ last_seen_at: now })
+    .eq("id", currentDevice.id)
+    .eq("user_id", session.user.id)
+    .is("revoked_at", null)
+    .select("id,last_seen_at")
+    .maybeSingle();
+
+  if (error) {
+    lastDeviceHeartbeatAt = 0;
+    throw error;
+  }
+
+  if (data?.id) {
+    currentDevice = {
+      ...currentDevice,
+      last_seen_at: data.last_seen_at,
+    };
+  }
 }
 
 async function detectInstalledApps() {
@@ -523,6 +556,9 @@ async function closeTrackedAppSessionIfNeeded(trackingState, endedAt) {
 
 async function syncActiveAppOnce() {
   await ensureSession();
+  await touchCurrentDeviceHeartbeatIfNeeded().catch((error) => {
+    console.log("[Tether Desktop] Device heartbeat skipped:", error.message);
+  });
   const trackingState = (await readJson(TRACKING_STATE_FILE)) ?? {};
 
   if (isSystemIdle()) {

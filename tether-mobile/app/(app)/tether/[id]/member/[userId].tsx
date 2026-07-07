@@ -116,9 +116,15 @@ export default function MemberDetailScreen() {
 
               {log && log.topDomains.length > 0 ? (
                 <View style={styles.domainList}>
-                  {log.topDomains.map((domain, index) => (
+                  {log.topDomains.map((domain) => (
                     <View key={domain.domain} style={styles.domainRow}>
-                      <Text style={styles.domainRank}>{index + 1}</Text>
+                      <Ionicons
+                        name={
+                          domain.targetType === "app" ? "laptop-outline" : "globe-outline"
+                        }
+                        size={14}
+                        color={colors.textTertiary}
+                      />
                       <Text style={styles.domainName} numberOfLines={1}>
                         {domain.domain}
                       </Text>
@@ -221,11 +227,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-  },
-  domainRank: {
-    ...typography.caption,
-    color: colors.textTertiary,
-    width: 16,
   },
   domainName: {
     ...typography.subhead,

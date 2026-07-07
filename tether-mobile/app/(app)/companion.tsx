@@ -13,7 +13,9 @@ import {
 } from "../../components/ui";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import { useAuth } from "../../contexts/AuthContext";
+import { useDeviceStatus } from "../../hooks/useDeviceStatus";
 import { fetchDetectedApps } from "../../lib/detected-tools";
+import { formatRelativeTime } from "../../lib/status";
 import { supabase } from "../../lib/supabase";
 
 const STEPS = [
@@ -26,16 +28,26 @@ const STEPS = [
 export default function CompanionScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const {
+    status: deviceStatus,
+    loading: deviceStatusLoading,
+    refreshing: deviceStatusRefreshing,
+    refresh: refreshDeviceStatus,
+  } = useDeviceStatus();
   const email = session?.user.email;
 
-  const [companionStatus, setCompanionStatus] = useState<ConnectionStatus>("checking");
   const [extensionStatus, setExtensionStatus] = useState<ConnectionStatus>("checking");
   const [appCount, setAppCount] = useState(0);
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const checkConnections = useCallback(async () => {
-    setCompanionStatus("checking");
+  const companionStatus: ConnectionStatus = deviceStatusLoading
+    ? "checking"
+    : deviceStatus?.hasRecentDesktop
+      ? "connected"
+      : "disconnected";
+
+  const loadSecondaryConnectionDetails = useCallback(async () => {
     setExtensionStatus("checking");
     try {
       const [apps, activeTab] = await Promise.all([
@@ -43,21 +55,19 @@ export default function CompanionScreen() {
         supabase.from("active_tabs").select("user_id").maybeSingle(),
       ]);
       setAppCount(apps.length);
-      setCompanionStatus(apps.length > 0 ? "connected" : "waiting");
       setExtensionStatus(activeTab.data ? "connected" : "disconnected");
     } catch {
-      setCompanionStatus("disconnected");
       setExtensionStatus("disconnected");
     }
   }, []);
 
   useEffect(() => {
-    checkConnections();
-  }, [checkConnections]);
+    loadSecondaryConnectionDetails();
+  }, [loadSecondaryConnectionDetails]);
 
   async function handleCheck() {
     setChecking(true);
-    await checkConnections();
+    await Promise.all([refreshDeviceStatus(), loadSecondaryConnectionDetails()]);
     setChecking(false);
   }
 
@@ -89,10 +99,12 @@ export default function CompanionScreen() {
             status={companionStatus}
             description={
               companionStatus === "connected"
-                ? `Synced ${appCount} ${appCount === 1 ? "app" : "apps"} from your computer.`
-                : companionStatus === "waiting"
-                  ? "Signed in, but no apps have synced yet."
-                  : "Not detected yet. Follow the steps below to set it up."
+                ? `Desktop connected. Last seen ${formatRelativeTime(deviceStatus?.desktopLastSeenAt)}.${
+                    appCount > 0
+                      ? ` Synced ${appCount} ${appCount === 1 ? "app" : "apps"} from your computer.`
+                      : ""
+                  }`
+                : "Desktop not connected. Open the companion and sign in with this same Tether account."
             }
           />
           <ConnectionStatusCard
@@ -112,28 +124,32 @@ export default function CompanionScreen() {
             icon="refresh"
             variant="secondary"
             onPress={handleCheck}
-            loading={checking}
+            loading={checking || deviceStatusRefreshing}
           />
         </View>
 
-        <SectionHeader title="Setup steps" />
-        <View style={styles.steps}>
-          {STEPS.map((step, index) => {
-            const done = companionStatus === "connected";
-            return (
-              <View key={step} style={styles.step}>
-                <View style={[styles.stepNumber, done && styles.stepNumberDone]}>
-                  {done ? (
-                    <Ionicons name="checkmark" size={14} color={colors.workingSoft} />
-                  ) : (
+        {companionStatus === "connected" ? (
+          <View style={styles.doneNotice}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.workingSoft} />
+            <Text style={styles.doneNoticeText}>
+              Desktop connected — keep the companion running while you work.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <SectionHeader title="Setup steps" />
+            <View style={styles.steps}>
+              {STEPS.map((step, index) => (
+                <View key={step} style={styles.step}>
+                  <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>{index + 1}</Text>
-                  )}
+                  </View>
+                  <Text style={styles.stepText}>{step}</Text>
                 </View>
-                <Text style={styles.stepText}>{step}</Text>
-              </View>
-            );
-          })}
-        </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {email ? (
           <View style={styles.emailCard}>
@@ -197,9 +213,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNumberDone: {
-    backgroundColor: colors.workingSurface,
+  doneNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1,
     borderColor: colors.workingBorder,
+    backgroundColor: colors.workingSurface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xxl,
+  },
+  doneNoticeText: {
+    ...typography.subhead,
+    color: colors.textPrimary,
+    flex: 1,
   },
   stepNumberText: {
     ...typography.label,

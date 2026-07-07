@@ -11,13 +11,13 @@ import {
 } from "react-native";
 import {
   AppScreen,
-  Badge,
   Card,
   EmptyState,
   ErrorState,
   IconButton,
   LoadingState,
   SectionHeader,
+  TetherCard,
 } from "../../components/ui";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import { fetchMyTethers, type TetherSummary } from "../../lib/tethers";
@@ -192,35 +192,12 @@ export default function TetherListScreen() {
               </Text>
             }
             renderItem={({ item }) => (
-              <Card
+              <TetherCard
+                name={item.name}
+                memberCount={item.memberCount}
+                inviteCode={item.invite_code}
                 onPress={() => router.push(`/tether/${item.id}`)}
-                accessibilityLabel={`${item.name}, ${item.memberCount} ${
-                  item.memberCount === 1 ? "member" : "members"
-                }`}
-                accessibilityHint="Open tether board"
-                style={styles.tetherCard}
-              >
-                <View style={styles.tetherAvatar}>
-                  <Text style={styles.tetherAvatarText}>
-                    {item.name.trim().charAt(0).toUpperCase() || "T"}
-                  </Text>
-                </View>
-                <View style={styles.tetherBody}>
-                  <Text style={styles.tetherName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <View style={styles.tetherMetaRow}>
-                    <Badge
-                      label={`${item.memberCount} ${
-                        item.memberCount === 1 ? "member" : "members"
-                      }`}
-                      icon="people-outline"
-                    />
-                    <Badge label={item.invite_code} icon="key-outline" tone="accent" />
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-              </Card>
+              />
             )}
           />
         </>
@@ -356,37 +333,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: spacing.xl,
-  },
-  tetherCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  tetherAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tetherAvatarText: {
-    ...typography.heading,
-    color: colors.accentSoft,
-  },
-  tetherBody: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  tetherName: {
-    ...typography.bodyStrong,
-    color: colors.textPrimary,
-  },
-  tetherMetaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
   },
 });

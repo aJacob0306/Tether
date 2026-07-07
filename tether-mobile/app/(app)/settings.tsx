@@ -21,7 +21,7 @@ import {
 } from "../../components/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import { colors, radius, spacing, typography } from "../../constants/theme";
-import { fetchDetectedApps } from "../../lib/detected-tools";
+import { useDeviceStatus } from "../../hooks/useDeviceStatus";
 import { fetchMyProfile, updateMyDisplayName } from "../../lib/profile";
 import { supabase, type ActiveTab } from "../../lib/supabase";
 
@@ -53,7 +53,7 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
-  const [companionConnected, setCompanionConnected] = useState(false);
+  const { status: deviceStatus } = useDeviceStatus();
   const [pushEnabled, setPushEnabled] = useState(true);
 
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
@@ -72,12 +72,8 @@ export default function SettingsScreen() {
   }, []);
 
   const loadConnections = useCallback(async () => {
-    const [{ data: tab }, apps] = await Promise.all([
-      supabase.from("active_tabs").select("*").maybeSingle(),
-      fetchDetectedApps().catch(() => []),
-    ]);
+    const { data: tab } = await supabase.from("active_tabs").select("*").maybeSingle();
     setActiveTab(tab);
-    setCompanionConnected(apps.length > 0);
   }, []);
 
   useEffect(() => {
@@ -105,6 +101,7 @@ export default function SettingsScreen() {
   if (!session) return null;
 
   const initial = displayName.trim().charAt(0).toUpperCase() || "?";
+  const companionConnected = Boolean(deviceStatus?.hasRecentDesktop);
 
   return (
     <AppScreen>
@@ -162,13 +159,13 @@ export default function SettingsScreen() {
               label="Desktop companion"
               hint="Detects and tracks your work apps"
               onPress={() => router.push("/companion")}
+              accessibilityHint="Open desktop companion setup"
               right={
                 <StatusText
                   connected={companionConnected}
                   label={companionConnected ? "Connected" : "Set up"}
                 />
               }
-              showChevron={false}
             />
             <ListRow
               icon="globe-outline"
@@ -224,12 +221,7 @@ export default function SettingsScreen() {
         <View style={styles.sectionGap}>
           <SectionHeader title="About" />
           <Card padded={false}>
-            <ListRow label="Version" value={appVersion} />
-            <ListRow
-              label="How Tether works"
-              hint="Track allowed apps and sites, stay accountable with your crew."
-              last
-            />
+            <ListRow label="Version" value={appVersion} last />
           </Card>
         </View>
 

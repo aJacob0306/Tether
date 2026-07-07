@@ -1,6 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
-import { appStyles } from "../constants/styles";
+import { StyleSheet, Text, View } from "react-native";
+import { colors, spacing, typography } from "../constants/theme";
+import { Card, EmptyState } from "./ui";
 import {
   formatFocusDurationFromMs,
   formatLogContributionLabel,
@@ -78,40 +80,111 @@ export function DetailedLog({ logs, members, dayStart, isToday }: DetailedLogPro
     ? logs.map((log) => withLiveWork(log, membersById.get(log.user_id), dayStart))
     : logs;
 
+  if (!displayLogs.length) {
+    return (
+      <EmptyState
+        icon="moon-outline"
+        title="No work logged"
+        message={
+          isToday
+            ? "Nobody has worked on tracked tools yet today. Time on tracked apps and sites will show up here."
+            : "Nobody worked on tracked tools this day."
+        }
+      />
+    );
+  }
+
   return (
-    <View style={appStyles.detailLogContent}>
-      {displayLogs.length ? (
-        displayLogs.map((item) => (
-          <View key={item.user_id} style={appStyles.detailLogCard}>
-            <View style={appStyles.detailLogHeader}>
-              <Text style={appStyles.detailLogName}>{item.display_name}</Text>
-              <Text style={appStyles.detailLogTotal}>
-                {formatFocusDurationFromMs(item.totalWorkMs)}
-              </Text>
-            </View>
+    <View style={styles.list}>
+      {displayLogs.map((item) => (
+        <Card
+          key={item.user_id}
+          accessibilityLabel={`${item.display_name}, ${formatFocusDurationFromMs(item.totalWorkMs)} ${contributionLabel}`}
+        >
+          <View style={styles.header}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.display_name}
+            </Text>
+            <Text style={styles.total}>
+              {formatFocusDurationFromMs(item.totalWorkMs)}
+            </Text>
+          </View>
 
-            <Text style={appStyles.detailLogMeta}>{contributionLabel}</Text>
+          <Text style={styles.meta}>{contributionLabel}</Text>
 
-            {item.topDomains.length > 0 ? (
-              item.topDomains.map((domain, index) => (
-                <View key={domain.domain} style={appStyles.detailDomainRow}>
-                  <Text style={appStyles.detailDomainRank}>{index + 1}</Text>
-                  <Text style={appStyles.detailDomainName}>
-                    {domain.targetType === "app" ? `App: ${domain.domain}` : domain.domain}
+          {item.topDomains.length > 0 ? (
+            <View style={styles.domainList}>
+              {item.topDomains.map((domain) => (
+                <View key={domain.domain} style={styles.domainRow}>
+                  <Ionicons
+                    name={domain.targetType === "app" ? "laptop-outline" : "globe-outline"}
+                    size={14}
+                    color={colors.textTertiary}
+                  />
+                  <Text style={styles.domainName} numberOfLines={1}>
+                    {domain.domain}
                   </Text>
-                  <Text style={appStyles.detailDomainTime}>
+                  <Text style={styles.domainTime}>
                     {formatFocusDurationFromMs(domain.workMs)}
                   </Text>
                 </View>
-              ))
-            ) : (
-              <Text style={appStyles.detailLogEmpty}>No work targets tracked this day.</Text>
-            )}
-          </View>
-        ))
-      ) : (
-        <Text style={appStyles.emptyState}>No work logged for this tether this day.</Text>
-      )}
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.empty}>No work targets tracked this day.</Text>
+          )}
+        </Card>
+      ))}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  list: {
+    gap: spacing.md,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: 2,
+  },
+  name: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  total: {
+    ...typography.bodyStrong,
+    color: colors.accentSoft,
+  },
+  meta: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginBottom: spacing.md,
+  },
+  domainList: {
+    gap: 0,
+  },
+  domainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  domainName: {
+    ...typography.subhead,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  domainTime: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  empty: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+});

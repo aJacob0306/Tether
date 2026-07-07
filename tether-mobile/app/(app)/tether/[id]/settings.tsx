@@ -1,17 +1,17 @@
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { AllowlistPanel } from "../../../../components/AllowlistPanel";
 import { MemberPermissionsPanel } from "../../../../components/MemberPermissionsPanel";
-import { SettingsRow, SettingsSection } from "../../../../components/SettingsSection";
 import {
   AppScreen,
   Card,
   ErrorState,
-  LoadingState,
   ListRow,
+  LoadingState,
   ScreenHeader,
+  SectionHeader,
 } from "../../../../components/ui";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { colors, spacing, typography } from "../../../../constants/theme";
@@ -93,40 +93,40 @@ export default function TetherSettingsScreen() {
                 : "These are the rules for this tether. Only admins and delegated managers can edit them."}
           </Text>
 
-          <SettingsSection title="Workspace">
-            <SettingsRow label="Name" value={tether.name} />
-            <SettingsRow
-              label="Invite code"
-              value={tether.invite_code}
-              hint="Share this code so others can join"
-              last
-            />
-          </SettingsSection>
+          <View style={styles.section}>
+            <SectionHeader title="Workspace" />
+            <Card padded={false}>
+              <ListRow label="Name" value={tether.name} />
+              <ListRow
+                icon={copied ? "checkmark" : "copy-outline"}
+                label="Invite code"
+                value={tether.invite_code}
+                hint={copied ? "Copied to clipboard" : "Tap to copy and share with your group"}
+                onPress={handleCopyInviteCode}
+                showChevron={false}
+                accessibilityHint="Copies the invite code to your clipboard"
+                last
+              />
+            </Card>
+          </View>
 
-          <Card padded={false} style={styles.copyCard}>
-            <ListRow
-              icon={copied ? "checkmark" : "copy-outline"}
-              label={copied ? "Copied to clipboard" : "Copy invite code"}
-              onPress={handleCopyInviteCode}
-              showChevron={false}
-              last
-            />
-          </Card>
-
-          <SettingsSection title="Your role">
-            <SettingsRow
-              label={myMember?.display_name ?? "You"}
-              value={myMember ? memberRoleLabel(myMember) : "Member"}
-              hint={
-                isCreator
-                  ? "Full admin access"
-                  : canManage
-                    ? "Can edit the work allowlist"
-                    : "View-only access to rules"
-              }
-              last
-            />
-          </SettingsSection>
+          <View style={styles.section}>
+            <SectionHeader title="Your role" />
+            <Card padded={false}>
+              <ListRow
+                label={myMember?.display_name ?? "You"}
+                value={myMember ? memberRoleLabel(myMember) : "Member"}
+                hint={
+                  isCreator
+                    ? "Full admin access"
+                    : canManage
+                      ? "Can edit what counts as work"
+                      : "View-only access to rules"
+                }
+                last
+              />
+            </Card>
+          </View>
 
           {isCreator ? (
             <MemberPermissionsPanel tetherId={tether.id} currentUserId={userId ?? ""} />
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xl,
   },
-  copyCard: {
+  section: {
     marginBottom: spacing.xxl,
   },
 });

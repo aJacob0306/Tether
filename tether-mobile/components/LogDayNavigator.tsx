@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { appStyles } from "../constants/styles";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../constants/theme";
+import { IconButton } from "./ui";
 import {
   formatFocusDurationFromMs,
   formatLogDayLabel,
@@ -37,37 +38,65 @@ export function LogDayNavigator({
   );
   const liveWorkMs = isToday ? getLiveDailyFocusMs(workingMembers, dayStart) : 0;
   const displayWorkMs = storedWorkMs + liveWorkMs;
+  const dayLabel = formatLogDayLabel(dayStart, isToday);
 
   return (
-    <View style={appStyles.logDayNav}>
-      <View style={appStyles.logDayNavRow}>
-        <Pressable
-          onPress={onPrevious}
-          disabled={!canGoPrevious}
-          style={[appStyles.logDayNavButton, !canGoPrevious && appStyles.logDayNavButtonDisabled]}
-        >
-          <Text style={appStyles.cardChevron}>{"<"}</Text>
-        </Pressable>
+    <View style={styles.card}>
+      <IconButton
+        icon="chevron-back"
+        onPress={onPrevious}
+        disabled={!canGoPrevious}
+        accessibilityLabel="Previous day"
+      />
 
-        <View style={appStyles.logDayNavCenter}>
-          <Text style={appStyles.logDayNavLabel}>{formatLogDayLabel(dayStart, isToday)}</Text>
-          {loading ? (
-            <ActivityIndicator size="small" color="#e6b4ff" style={{ marginTop: 6 }} />
-          ) : (
-            <Text style={appStyles.logDayNavTotal}>
-              {formatFocusDurationFromMs(displayWorkMs)} group focus
-            </Text>
-          )}
-        </View>
-
-        <Pressable
-          onPress={onNext}
-          disabled={!canGoNext}
-          style={[appStyles.logDayNavButton, !canGoNext && appStyles.logDayNavButtonDisabled]}
-        >
-          <Text style={appStyles.cardChevron}>{">"}</Text>
-        </Pressable>
+      <View style={styles.center} accessibilityRole="header" accessibilityLabel={dayLabel}>
+        <Text style={styles.dayLabel}>{dayLabel}</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.accentSoft} style={styles.loader} />
+        ) : (
+          <Text style={styles.total}>
+            {formatFocusDurationFromMs(displayWorkMs)} group focus
+          </Text>
+        )}
       </View>
+
+      <IconButton
+        icon="chevron-forward"
+        onPress={onNext}
+        disabled={!canGoNext}
+        accessibilityLabel="Next day"
+      />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+  },
+  dayLabel: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  total: {
+    ...typography.label,
+    color: colors.accentSoft,
+    marginTop: spacing.xs,
+  },
+  loader: {
+    marginTop: spacing.xs,
+  },
+});

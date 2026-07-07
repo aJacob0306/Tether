@@ -41,6 +41,8 @@ supabase db push
 | `016_app_work_sessions.sql` | App-aware work sessions and board/log RPC fields for desktop tracking |
 | `017_close_stale_work_sessions.sql` | `close_stale_open_work_sessions` RPC to end orphaned open sessions |
 | `018_tether_peer_detected_tools.sql` | Lets tether peers read each other's detected desktop apps for allowlist setup |
+| `019_work_session_effective_end.sql` | Caps reported work duration when stale sessions close with inflated end times |
+| `020_tether_member_permissions.sql` | Adds delegated allowlist-management permissions for tether members |
 
 Apply migrations in order.
 

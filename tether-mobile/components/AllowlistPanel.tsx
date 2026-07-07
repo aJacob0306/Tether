@@ -1,45 +1,83 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   Pressable,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { appStyles } from "../constants/styles";
+import { colors, radius, spacing, typography } from "../constants/theme";
+import {
+  Card,
+  EmptyState,
+  IconButton,
+  ModalSheet,
+  PrimaryButton,
+  SecondaryButton,
+  SectionHeader,
+} from "./ui";
 import {
   addDetectedAppAllowlistEntry,
   addTetherAllowlistEntry,
-  allowlistTypeLabel,
   fetchTetherAllowlist,
   removeTetherAllowlistEntry,
 } from "../lib/allowlist";
 import { fetchTetherDetectedApps } from "../lib/detected-tools";
-import type { AllowedTarget, AllowedTargetType, DetectedTool } from "../lib/supabase";
+import type { AllowedTarget, DetectedTool } from "../lib/supabase";
 
 type AllowlistPanelProps = {
   tetherId: string;
   canManageAllowlist: boolean;
 };
 
-const TYPE_OPTIONS: { type: AllowedTargetType; label: string; hint: string }[] = [
-  { type: "domain", label: "Website", hint: "github.com" },
-  { type: "app", label: "App", hint: "Visual Studio Code" },
-];
+type AddTab = "apps" | "websites";
+
+function iconUriFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): string | null {
+  const iconDataUrl = metadata?.iconDataUrl;
+  return typeof iconDataUrl === "string" && iconDataUrl.startsWith("data:image/")
+    ? iconDataUrl
+    : null;
+}
+
+function TargetIcon({
+  metadata,
+  fallbackIcon,
+}: {
+  metadata?: Record<string, unknown> | null;
+  fallbackIcon: "laptop-outline" | "globe-outline";
+}) {
+  const iconUri = iconUriFromMetadata(metadata);
+  if (iconUri) {
+    return <Image source={{ uri: iconUri }} style={styles.targetIcon} />;
+  }
+  return (
+    <View style={styles.targetIconFallback}>
+      <Ionicons name={fallbackIcon} size={16} color={colors.accentSoft} />
+    </View>
+  );
+}
 
 export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelProps) {
   const [entries, setEntries] = useState<AllowedTarget[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [targetType, setTargetType] = useState<AllowedTargetType>("domain");
-  const [value, setValue] = useState("");
-  const [detectedApps, setDetectedApps] = useState<DetectedTool[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [addTab, setAddTab] = useState<AddTab>("apps");
   const [appSearch, setAppSearch] = useState("");
+  const [detectedApps, setDetectedApps] = useState<DetectedTool[]>([]);
   const [loadingDetectedApps, setLoadingDetectedApps] = useState(false);
   const [addingDetectedAppId, setAddingDetectedAppId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [websiteValue, setWebsiteValue] = useState("");
+  const [savingWebsite, setSavingWebsite] = useState(false);
+  const [sheetError, setSheetError] = useState("");
 
   const appEntries = useMemo(
     () => entries.filter((entry) => entry.target_type === "app"),
@@ -50,29 +88,22 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
     [entries],
   );
 
-  const allowedAppValues = useMemo(() => {
-    return new Set(
-      appEntries.map((entry) => entry.value.trim().toLowerCase()),
-    );
-  }, [appEntries]);
+  const allowedAppValues = useMemo(
+    () => new Set(appEntries.map((entry) => entry.value.trim().toLowerCase())),
+    [appEntries],
+  );
 
   const filteredDetectedApps = useMemo(() => {
     const query = appSearch.trim().toLowerCase();
     if (!query) return detectedApps;
 
-    return detectedApps.filter((app) => {
-      const searchable = [
-        app.display_name,
-        app.value,
-        app.bundle_identifier,
-        app.platform,
-      ]
+    return detectedApps.filter((app) =>
+      [app.display_name, app.value, app.bundle_identifier, app.platform]
         .filter(Boolean)
         .join(" ")
-        .toLowerCase();
-
-      return searchable.includes(query);
-    });
+        .toLowerCase()
+        .includes(query),
+    );
   }, [appSearch, detectedApps]);
 
   const loadAllowlist = useCallback(async () => {
@@ -96,12 +127,12 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
     if (!canManageAllowlist) return;
 
     setLoadingDetectedApps(true);
-    setError("");
+    setSheetError("");
     try {
       const apps = await fetchTetherDetectedApps(tetherId);
       setDetectedApps(apps);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load detected apps.");
+      setSheetError(err instanceof Error ? err.message : "Failed to load detected apps.");
     } finally {
       setLoadingDetectedApps(false);
     }
@@ -111,56 +142,53 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
     loadDetectedApps();
   }, [loadDetectedApps]);
 
-  async function handleAdd() {
-    setSaving(true);
-    setError("");
-
-    try {
-      const entry = await addTetherAllowlistEntry(tetherId, targetType, value);
-      setEntries((prev) =>
-        [...prev, entry].sort((a, b) => {
-          if (a.target_type !== b.target_type) {
-            return a.target_type.localeCompare(b.target_type);
-          }
-          return a.value.localeCompare(b.value);
-        }),
-      );
-      setValue("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add entry.");
-    } finally {
-      setSaving(false);
-    }
+  function insertEntry(entry: AllowedTarget) {
+    setEntries((prev) =>
+      [...prev, entry].sort((a, b) => {
+        if (a.target_type !== b.target_type) {
+          return a.target_type.localeCompare(b.target_type);
+        }
+        return a.value.localeCompare(b.value);
+      }),
+    );
   }
 
   async function handleAddDetectedApp(app: DetectedTool) {
     setAddingDetectedAppId(app.id);
-    setError("");
+    setSheetError("");
 
     try {
       const entry = await addDetectedAppAllowlistEntry(tetherId, app);
-      setEntries((prev) =>
-        [...prev, entry].sort((a, b) => {
-          if (a.target_type !== b.target_type) {
-            return a.target_type.localeCompare(b.target_type);
-          }
-          return a.value.localeCompare(b.value);
-        }),
-      );
+      insertEntry(entry);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add app.");
+      setSheetError(err instanceof Error ? err.message : "Failed to add app.");
     } finally {
       setAddingDetectedAppId(null);
     }
   }
 
-  async function handleRemove(entryId: string) {
-    setRemovingId(entryId);
+  async function handleAddWebsite() {
+    setSavingWebsite(true);
+    setSheetError("");
+
+    try {
+      const entry = await addTetherAllowlistEntry(tetherId, "domain", websiteValue);
+      insertEntry(entry);
+      setWebsiteValue("");
+    } catch (err) {
+      setSheetError(err instanceof Error ? err.message : "Failed to add website.");
+    } finally {
+      setSavingWebsite(false);
+    }
+  }
+
+  async function handleRemove(entry: AllowedTarget) {
+    setRemovingId(entry.id);
     setError("");
 
     try {
-      await removeTetherAllowlistEntry(entryId);
-      setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+      await removeTetherAllowlistEntry(entry.id);
+      setEntries((prev) => prev.filter((row) => row.id !== entry.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove entry.");
     } finally {
@@ -168,267 +196,424 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
     }
   }
 
-  const selectedHint = TYPE_OPTIONS.find((option) => option.type === targetType)?.hint ?? "";
-
-  function appIconUri(metadata: Record<string, unknown> | null | undefined): string | null {
-    const iconDataUrl = metadata?.iconDataUrl;
-    return typeof iconDataUrl === "string" && iconDataUrl.startsWith("data:image/")
-      ? iconDataUrl
-      : null;
+  function openSheet() {
+    setSheetError("");
+    setSheetVisible(true);
   }
 
-  function renderIcon(label: string, metadata?: Record<string, unknown> | null) {
-    const iconUri = appIconUri(metadata);
-    if (iconUri) {
-      return <Image source={{ uri: iconUri }} style={appStyles.detectedAppIcon} />;
-    }
+  function renderEntryRow(entry: AllowedTarget, last: boolean) {
+    const name = entry.display_name ?? entry.value;
+    const showValue = Boolean(entry.display_name && entry.display_name !== entry.value);
 
     return (
-      <View style={appStyles.detectedAppIconFallback}>
-        <Text style={appStyles.detectedAppIconFallbackText}>
-          {label.trim().charAt(0).toUpperCase() || "A"}
-        </Text>
-      </View>
-    );
-  }
-
-  function renderCurrentEntry(item: AllowedTarget) {
-    return (
-      <View key={item.id} style={appStyles.allowlistRow}>
-        {item.target_type === "app" ? renderIcon(item.value, item.metadata) : null}
-        <View style={appStyles.allowlistRowText}>
-          <Text style={appStyles.allowlistTypeBadge}>
-            {allowlistTypeLabel(item.target_type)}
+      <View key={entry.id} style={[styles.entryRow, last && styles.entryRowLast]}>
+        <TargetIcon
+          metadata={entry.metadata}
+          fallbackIcon={entry.target_type === "app" ? "laptop-outline" : "globe-outline"}
+        />
+        <View style={styles.entryBody}>
+          <Text style={styles.entryName} numberOfLines={1}>
+            {name}
           </Text>
-          <Text style={appStyles.allowlistValue}>{item.display_name ?? item.value}</Text>
-          {item.display_name && item.display_name !== item.value ? (
-            <Text style={appStyles.detectedAppMeta}>{item.value}</Text>
+          {showValue ? (
+            <Text style={styles.entryMeta} numberOfLines={1}>
+              {entry.value}
+            </Text>
           ) : null}
         </View>
         {canManageAllowlist ? (
-          <Pressable
-            style={[
-              appStyles.allowlistRemoveButton,
-              removingId === item.id && appStyles.buttonDisabled,
-            ]}
-            onPress={() => handleRemove(item.id)}
-            disabled={removingId === item.id}
-          >
-            {removingId === item.id ? (
-              <ActivityIndicator size="small" color="#b00020" />
-            ) : (
-              <Text style={appStyles.allowlistRemoveText}>Remove</Text>
-            )}
-          </Pressable>
+          removingId === entry.id ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <IconButton
+              icon="close"
+              variant="ghost"
+              color={colors.textSecondary}
+              size={18}
+              onPress={() => handleRemove(entry)}
+              accessibilityLabel={`Remove ${name} from tracked work`}
+            />
+          )
         ) : null}
       </View>
     );
   }
 
-  function renderCurrentSection(
+  function renderEntryGroup(
     title: string,
-    sectionEntries: AllowedTarget[],
+    groupEntries: AllowedTarget[],
     emptyMessage: string,
   ) {
     return (
-      <View style={appStyles.allowlistCurrentSection}>
-        <Text style={appStyles.allowlistSectionTitle}>
-          {title} ({sectionEntries.length})
-        </Text>
-        {sectionEntries.length ? (
-          <View style={appStyles.allowlistCurrentList}>
-            {sectionEntries.map(renderCurrentEntry)}
-          </View>
-        ) : (
-          <Text style={appStyles.emptyState}>{emptyMessage}</Text>
-        )}
+      <View style={styles.group}>
+        <SectionHeader title={title} count={groupEntries.length} />
+        <Card padded={false}>
+          {groupEntries.length ? (
+            groupEntries.map((entry, index) =>
+              renderEntryRow(entry, index === groupEntries.length - 1),
+            )
+          ) : (
+            <Text style={styles.groupEmpty}>{emptyMessage}</Text>
+          )}
+        </Card>
       </View>
     );
   }
 
   return (
-    <View style={appStyles.allowlistPanel}>
-      <Text style={appStyles.allowlistTitle}>Work allowlist</Text>
-      <Text style={appStyles.allowlistDescription}>
-        Only these apps and websites count as work for this tether. The Chrome extension
-        syncs allowlisted websites, and the desktop companion tracks allowed desktop apps.
+    <View>
+      <SectionHeader title="What counts as work" />
+      <Text style={styles.description}>
+        Time on these apps and websites shows the group you&apos;re working. The desktop
+        companion tracks apps; the browser extension tracks websites.
       </Text>
 
       {loading ? (
-        <ActivityIndicator style={appStyles.tabLoader} size="large" />
+        <ActivityIndicator
+          style={styles.loader}
+          size="large"
+          color={colors.accentSoft}
+        />
+      ) : entries.length === 0 ? (
+        <EmptyState
+          icon="briefcase-outline"
+          title="Nothing tracked yet"
+          message={
+            canManageAllowlist
+              ? "Add the apps and websites that count as work for this tether."
+              : "An admin hasn't added any tracked apps or websites yet."
+          }
+          actionLabel={canManageAllowlist ? "Add app or website" : undefined}
+          onAction={canManageAllowlist ? openSheet : undefined}
+        />
       ) : (
         <>
-          {canManageAllowlist ? (
-            <View style={appStyles.allowlistForm}>
-              <View style={appStyles.allowlistFormHeader}>
-                <View style={appStyles.allowlistFormHeaderText}>
-                  <Text style={appStyles.allowlistFormLabel}>Add detected desktop app</Text>
-                  <Text style={appStyles.hint}>
-                    Search synced apps from the desktop companion and tap Add.
-                  </Text>
-                </View>
-                <View style={appStyles.allowlistCountBadge}>
-                  <Text style={appStyles.allowlistCountText}>
-                    {filteredDetectedApps.length}/{detectedApps.length}
-                  </Text>
-                </View>
-              </View>
-
-              <TextInput
-                style={appStyles.detectedAppsSearchInput}
-                value={appSearch}
-                onChangeText={setAppSearch}
-                placeholder="Search apps by name, bundle, or platform"
-                placeholderTextColor="#999"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <View style={appStyles.detectedAppsList}>
-                {loadingDetectedApps ? (
-                  <ActivityIndicator style={appStyles.tabLoader} size="small" />
-                ) : detectedApps.length ? (
-                  filteredDetectedApps.length ? (
-                    filteredDetectedApps.map((app) => {
-                      const alreadyAllowed = allowedAppValues.has(
-                        app.value.trim().toLowerCase(),
-                      );
-
-                      return (
-                        <Pressable
-                          key={app.id}
-                          style={[
-                            appStyles.detectedAppRow,
-                            alreadyAllowed && appStyles.detectedAppRowSelected,
-                          ]}
-                          onPress={() => handleAddDetectedApp(app)}
-                          disabled={alreadyAllowed || addingDetectedAppId === app.id}
-                        >
-                          {renderIcon(app.display_name, app.metadata)}
-                          <View style={appStyles.detectedAppRowText}>
-                            <Text style={appStyles.detectedAppName}>{app.display_name}</Text>
-                            <Text style={appStyles.detectedAppMeta}>
-                              {app.bundle_identifier ?? app.platform}
-                            </Text>
-                          </View>
-                          {addingDetectedAppId === app.id ? (
-                            <ActivityIndicator size="small" color="#e6b4ff" />
-                          ) : (
-                            <Text
-                              style={[
-                                appStyles.detectedAppCheck,
-                                alreadyAllowed && appStyles.detectedAppCheckSelected,
-                              ]}
-                            >
-                              {alreadyAllowed ? "Added" : "Add"}
-                            </Text>
-                          )}
-                        </Pressable>
-                      );
-                    })
-                  ) : (
-                    <Text style={appStyles.emptyState}>
-                      {appSearch.trim()
-                        ? `No synced apps match "${appSearch.trim()}".`
-                        : "No synced apps found."}
-                    </Text>
-                  )
-                ) : (
-                  <Text style={appStyles.emptyState}>
-                    No desktop apps detected yet. Sign into the desktop companion,
-                    sync apps, then refresh this screen.
-                  </Text>
-                )}
-              </View>
-
-              <Pressable
-                style={[
-                  appStyles.secondaryButton,
-                  loadingDetectedApps && appStyles.buttonDisabled,
-                ]}
-                onPress={loadDetectedApps}
-                disabled={loadingDetectedApps}
-              >
-                <Text style={appStyles.secondaryButtonText}>
-                  {loadingDetectedApps ? "Refreshing apps..." : "Refresh synced apps"}
-                </Text>
-              </Pressable>
-
-              <Text style={appStyles.allowlistFormLabel}>Add allowed target</Text>
-
-              <View style={appStyles.allowlistTypeRow}>
-                {TYPE_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.type}
-                    style={[
-                      appStyles.allowlistTypeButton,
-                      targetType === option.type && appStyles.allowlistTypeButtonActive,
-                    ]}
-                    onPress={() => setTargetType(option.type)}
-                  >
-                    <Text
-                      style={[
-                        appStyles.allowlistTypeButtonText,
-                        targetType === option.type && appStyles.allowlistTypeButtonTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <TextInput
-                style={appStyles.allowlistInput}
-                value={value}
-                onChangeText={setValue}
-                placeholder={selectedHint}
-                placeholderTextColor="#999"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <Pressable
-                style={[appStyles.primaryButton, saving && appStyles.buttonDisabled]}
-                onPress={handleAdd}
-                disabled={saving || !value.trim()}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={appStyles.primaryButtonText}>Add to allowlist</Text>
-                )}
-              </Pressable>
-            </View>
-          ) : null}
-
-          {renderCurrentSection(
-            "Current apps",
+          {renderEntryGroup(
+            "Apps",
             appEntries,
-            canManageAllowlist
-              ? "No apps added to this tether yet."
-              : "No apps have been added yet.",
+            "No desktop apps are tracked yet.",
           )}
-
-          {renderCurrentSection(
-            "Current websites",
+          {renderEntryGroup(
+            "Websites",
             websiteEntries,
-            canManageAllowlist
-              ? "No websites added to this tether yet."
-              : "No websites have been added yet.",
+            "No websites are tracked yet.",
           )}
 
-          {!entries.length ? (
-            <Text style={appStyles.emptyState}>
-              {canManageAllowlist
-                ? "Add apps or websites above to decide what counts as work for this tether."
-                : "No allowed targets have been added yet."}
-            </Text>
+          {canManageAllowlist ? (
+            <SecondaryButton
+              label="Add app or website"
+              icon="add"
+              onPress={openSheet}
+            />
           ) : null}
         </>
       )}
 
-      {error ? <Text style={appStyles.error}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : null}
+
+      <ModalSheet
+        visible={sheetVisible}
+        title="Add tracked work"
+        onClose={() => setSheetVisible(false)}
+      >
+        <View style={styles.segment} accessibilityRole="tablist">
+          {(["apps", "websites"] as const).map((tab) => {
+            const selected = addTab === tab;
+            return (
+              <Pressable
+                key={tab}
+                onPress={() => setAddTab(tab)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={tab === "apps" ? "Desktop apps" : "Websites"}
+                style={[styles.segmentButton, selected && styles.segmentButtonActive]}
+              >
+                <Text
+                  style={[styles.segmentLabel, selected && styles.segmentLabelActive]}
+                >
+                  {tab === "apps" ? "Apps" : "Websites"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {addTab === "apps" ? (
+          <>
+            <View style={styles.searchWrap}>
+              <Ionicons name="search" size={16} color={colors.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                value={appSearch}
+                onChangeText={setAppSearch}
+                placeholder="Search synced apps"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Search synced apps"
+              />
+              <IconButton
+                icon="refresh"
+                variant="ghost"
+                size={18}
+                onPress={loadDetectedApps}
+                disabled={loadingDetectedApps}
+                accessibilityLabel="Refresh synced apps"
+              />
+            </View>
+
+            <ScrollView
+              style={styles.appList}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {loadingDetectedApps ? (
+                <ActivityIndicator
+                  style={styles.loader}
+                  size="small"
+                  color={colors.accentSoft}
+                />
+              ) : detectedApps.length === 0 ? (
+                <Text style={styles.sheetEmpty}>
+                  No desktop apps synced yet. Sign in to the desktop companion on your
+                  computer, then refresh.
+                </Text>
+              ) : filteredDetectedApps.length === 0 ? (
+                <Text style={styles.sheetEmpty}>
+                  No synced apps match “{appSearch.trim()}”.
+                </Text>
+              ) : (
+                filteredDetectedApps.map((app) => {
+                  const alreadyAdded = allowedAppValues.has(
+                    app.value.trim().toLowerCase(),
+                  );
+                  return (
+                    <Pressable
+                      key={app.id}
+                      onPress={() => handleAddDetectedApp(app)}
+                      disabled={alreadyAdded || addingDetectedAppId === app.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        alreadyAdded
+                          ? `${app.display_name}, already added`
+                          : `Add ${app.display_name}`
+                      }
+                      style={({ pressed }) => [
+                        styles.appRow,
+                        alreadyAdded && styles.appRowAdded,
+                        pressed && !alreadyAdded && styles.appRowPressed,
+                      ]}
+                    >
+                      <TargetIcon metadata={app.metadata} fallbackIcon="laptop-outline" />
+                      <View style={styles.entryBody}>
+                        <Text style={styles.entryName} numberOfLines={1}>
+                          {app.display_name}
+                        </Text>
+                        <Text style={styles.entryMeta} numberOfLines={1}>
+                          {app.bundle_identifier ?? app.platform}
+                        </Text>
+                      </View>
+                      {addingDetectedAppId === app.id ? (
+                        <ActivityIndicator size="small" color={colors.accentSoft} />
+                      ) : (
+                        <Ionicons
+                          name={alreadyAdded ? "checkmark-circle" : "add-circle-outline"}
+                          size={24}
+                          color={alreadyAdded ? colors.workingSoft : colors.textTertiary}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+          </>
+        ) : (
+          <View>
+            <Text style={styles.sheetHint}>
+              Websites are matched by domain — for example, github.com counts any page on
+              GitHub.
+            </Text>
+            <View style={styles.searchWrap}>
+              <Ionicons name="globe-outline" size={16} color={colors.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                value={websiteValue}
+                onChangeText={setWebsiteValue}
+                placeholder="github.com"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                accessibilityLabel="Website domain"
+                returnKeyType="done"
+                onSubmitEditing={handleAddWebsite}
+              />
+            </View>
+            <PrimaryButton
+              label="Add website"
+              onPress={handleAddWebsite}
+              loading={savingWebsite}
+              disabled={!websiteValue.trim()}
+            />
+          </View>
+        )}
+
+        {sheetError ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {sheetError}
+          </Text>
+        ) : null}
+      </ModalSheet>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  description: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+  },
+  loader: {
+    marginVertical: spacing.xl,
+  },
+  group: {
+    marginBottom: spacing.lg,
+  },
+  groupEmpty: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    padding: spacing.lg,
+  },
+  entryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    minHeight: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  entryRowLast: {
+    borderBottomWidth: 0,
+  },
+  entryBody: {
+    flex: 1,
+  },
+  entryName: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  entryMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  targetIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+  },
+  targetIconFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: spacing.md,
+  },
+  segment: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+    minHeight: 40,
+    borderRadius: radius.sm,
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segmentLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  segmentLabelActive: {
+    color: colors.textPrimary,
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    minHeight: 48,
+    marginBottom: spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 16,
+    paddingVertical: spacing.sm,
+  },
+  appList: {
+    maxHeight: 360,
+  },
+  appRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 56,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.sm,
+  },
+  appRowAdded: {
+    borderColor: colors.workingBorder,
+  },
+  appRowPressed: {
+    opacity: 0.8,
+  },
+  sheetEmpty: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    paddingVertical: spacing.lg,
+    textAlign: "center",
+  },
+  sheetHint: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+});

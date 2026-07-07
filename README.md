@@ -11,6 +11,14 @@ Peer accountability app — stay focused together by making work activity visibl
 | [`tether-desktop/`](tether-desktop/) | Electron desktop companion (macOS + Windows: detects installed apps and tracks allowlisted desktop apps) |
 | [`supabase/`](supabase/) | Database migrations |
 
+## Planning docs
+
+- [`docs/architecture.md`](docs/architecture.md) explains how the mobile app, Chrome extension, desktop companion, and Supabase backend fit together.
+- [`docs/readiness-checklist.md`](docs/readiness-checklist.md) lists the checks to complete before closed beta or marketing.
+- [`docs/closed-beta-playbook.md`](docs/closed-beta-playbook.md) defines the one-week beta test, accuracy checks, and exit criteria.
+- [`docs/observability-plan.md`](docs/observability-plan.md) recommends the minimal Sentry, PostHog, and Supabase logging setup.
+- [`docs/build-vs-buy.md`](docs/build-vs-buy.md) records what should stay custom and what services to revisit later.
+
 ## Getting started
 
 1. Create a Supabase project and apply migrations from [`supabase/migrations/`](supabase/migrations/) in order — see [`supabase/README.md`](supabase/README.md).

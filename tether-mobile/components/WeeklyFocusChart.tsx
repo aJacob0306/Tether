@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { appStyles } from "../constants/styles";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../constants/theme";
 import { formatFocusDurationFromMs, getLiveDailyFocusMs } from "../lib/status";
 import type { MemberActivity, WeeklyWorkDay } from "../lib/supabase";
 
@@ -56,47 +56,43 @@ export function WeeklyFocusChart({
   const maxWorkMs = Math.max(...displayDays.map((day) => day.workMs), 60 * 60 * 1000);
 
   return (
-    <View style={appStyles.weeklyChartCard}>
-      <View style={appStyles.weeklyChartHeader}>
+    <View style={styles.card}>
+      <View style={styles.header}>
         <View>
-          <Text style={appStyles.metricLabel}>This Week</Text>
-          <Text style={appStyles.tetherCardTitle}>Weekly hours</Text>
+          <Text style={styles.overline}>THIS WEEK</Text>
+          <Text style={styles.title}>Group focus</Text>
         </View>
-        <Text style={appStyles.weeklyChartTotal}>{formatFocusDurationFromMs(totalWeekMs)}</Text>
+        <Text style={styles.total}>{formatFocusDurationFromMs(totalWeekMs)}</Text>
       </View>
 
-      <View style={appStyles.weeklyChartBars}>
+      <View style={styles.bars}>
         {displayDays.map((day) => {
+          const isToday = day.key === currentDayKey;
           const barHeight =
-            day.workMs > 0 ? Math.max(4, Math.round((day.workMs / maxWorkMs) * BAR_MAX_HEIGHT)) : 0;
+            day.workMs > 0
+              ? Math.max(4, Math.round((day.workMs / maxWorkMs) * BAR_MAX_HEIGHT))
+              : 0;
 
           return (
             <Pressable
               key={day.key}
-              style={({ pressed }) => [
-                appStyles.weeklyChartBarColumn,
-                pressed && appStyles.weeklyChartBarColumnPressed,
-              ]}
+              style={({ pressed }) => [styles.barColumn, pressed && styles.barColumnPressed]}
               onPress={() => onDayPress?.(day.dayStart)}
               accessibilityRole="button"
-              accessibilityLabel={`View log for ${day.label}, ${formatHours(day.workMs)}`}
+              accessibilityLabel={`${day.label}, ${formatHours(day.workMs)} of focus`}
+              accessibilityHint="View this day's activity log"
             >
-              <Text style={appStyles.weeklyChartHourLabel}>{formatHours(day.workMs)}</Text>
-              <View style={appStyles.weeklyChartBarTrack}>
+              <Text style={styles.hourLabel}>{formatHours(day.workMs)}</Text>
+              <View style={styles.barTrack}>
                 <View
                   style={[
-                    appStyles.weeklyChartBarFill,
-                    day.key === currentDayKey ? appStyles.weeklyChartBarFillToday : null,
+                    styles.barFill,
+                    isToday && styles.barFillToday,
                     { height: barHeight },
                   ]}
                 />
               </View>
-              <Text
-                style={[
-                  appStyles.weeklyChartDayLabel,
-                  day.key === currentDayKey ? appStyles.weeklyChartDayLabelToday : null,
-                ]}
-              >
+              <Text style={[styles.dayLabel, isToday && styles.dayLabelToday]}>
                 {day.label}
               </Text>
             </Pressable>
@@ -106,3 +102,79 @@ export function WeeklyFocusChart({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surface,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  overline: {
+    ...typography.overline,
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    marginBottom: spacing.xs,
+  },
+  title: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  total: {
+    ...typography.heading,
+    color: colors.accentSoft,
+  },
+  bars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.sm,
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: "center",
+  },
+  barColumnPressed: {
+    opacity: 0.7,
+  },
+  hourLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  barTrack: {
+    width: "100%",
+    height: BAR_MAX_HEIGHT,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  barFill: {
+    width: "100%",
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentMuted,
+  },
+  barFillToday: {
+    backgroundColor: colors.accent,
+  },
+  dayLabel: {
+    ...typography.overline,
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    marginTop: spacing.sm,
+  },
+  dayLabelToday: {
+    color: colors.accentSoft,
+  },
+});

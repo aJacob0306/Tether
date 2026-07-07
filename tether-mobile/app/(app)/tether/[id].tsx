@@ -1,4 +1,5 @@
 import * as Clipboard from "expo-clipboard";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -17,6 +18,7 @@ import { WeeklyFocusChart } from "../../../components/WeeklyFocusChart";
 import {
   AppScreen,
   Badge,
+  Card,
   EmptyState,
   ErrorState,
   IconButton,
@@ -26,6 +28,7 @@ import {
   StatSummaryCard,
 } from "../../../components/ui";
 import { colors, radius, spacing, typography } from "../../../constants/theme";
+import { useDeviceStatus } from "../../../hooks/useDeviceStatus";
 import { useTetherBoard } from "../../../hooks/useTetherBoard";
 import {
   formatFocusDurationFromMs,
@@ -64,12 +67,15 @@ export default function TetherBoardScreen() {
     canGoPreviousLogDay,
     canGoNextLogDay,
   } = useTetherBoard(id);
+  const { status: deviceStatus, loading: deviceStatusLoading } = useDeviceStatus();
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TetherTab>("board");
 
   const workingMembers = members.filter((member) => member.status === "working");
   const liveDailyFocusMs = getLiveDailyFocusMs(workingMembers, localDayWindow.dayStart);
   const lifetimeFocusMs = lifetimeWorkMs + liveDailyFocusMs;
+  const showDesktopSetupCard =
+    !deviceStatusLoading && !deviceStatus?.hasRecentDesktop;
 
   const { working, quiet } = useMemo(() => {
     const sorted = [...members].sort(
@@ -162,6 +168,30 @@ export default function TetherBoardScreen() {
                   dailyWorkMs={dailyWorkMs}
                   dayStart={localDayWindow.dayStart}
                 />
+
+                {showDesktopSetupCard ? (
+                  <Card
+                    style={styles.desktopSetupCard}
+                    onPress={() => router.push("/companion")}
+                    accessibilityLabel="Connect desktop to verify your work"
+                    accessibilityHint="Opens desktop companion setup"
+                  >
+                    <View style={styles.desktopSetupBody}>
+                      <Text style={styles.desktopSetupTitle}>
+                        Connect desktop to verify your work
+                      </Text>
+                      <Text style={styles.desktopSetupText}>
+                        Desktop not connected. Open the companion on your computer so
+                        Tether can detect approved project apps.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="laptop-outline"
+                      size={22}
+                      color={colors.accentSoft}
+                    />
+                  </Card>
+                ) : null}
 
                 <View style={styles.statRow}>
                   <StatSummaryCard
@@ -308,6 +338,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     marginBottom: spacing.lg,
+  },
+  desktopSetupCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+    borderColor: colors.accentBorder,
+    backgroundColor: colors.accentSurface,
+  },
+  desktopSetupBody: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  desktopSetupTitle: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+  },
+  desktopSetupText: {
+    ...typography.subhead,
+    color: colors.textSecondary,
   },
   inviteHint: {
     borderWidth: 1,

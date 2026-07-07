@@ -85,6 +85,18 @@ export function Button({
   );
 }
 
+type VariantButtonProps = Omit<ButtonProps, "variant">;
+
+/** The single most important action on a screen. */
+export function PrimaryButton(props: VariantButtonProps) {
+  return <Button {...props} variant="primary" />;
+}
+
+/** Supporting actions that shouldn't compete with the primary CTA. */
+export function SecondaryButton(props: VariantButtonProps) {
+  return <Button {...props} variant="secondary" />;
+}
+
 const styles = StyleSheet.create({
   base: {
     minHeight: 50,

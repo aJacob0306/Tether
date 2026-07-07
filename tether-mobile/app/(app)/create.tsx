@@ -13,10 +13,11 @@ import {
 } from "react-native";
 import {
   AppScreen,
-  Button,
   IconButton,
+  PrimaryButton,
   ScreenHeader,
   SectionHeader,
+  TextInputField,
   ToolChip,
 } from "../../components/ui";
 import { colors, radius, spacing, typography } from "../../constants/theme";
@@ -140,19 +141,14 @@ export default function CreateTetherScreen() {
           counts as work.
         </Text>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Tether name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g. Study Crew"
-            placeholderTextColor={colors.textTertiary}
-            autoFocus
-            accessibilityLabel="Tether name"
-            returnKeyType="done"
-          />
-        </View>
+        <TextInputField
+          label="Tether name"
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. Study Crew"
+          autoFocus
+          returnKeyType="done"
+        />
 
         <SectionHeader
           title="Tracked apps"
@@ -257,7 +253,7 @@ export default function CreateTetherScreen() {
             {error}
           </Text>
         ) : null}
-        <Button
+        <PrimaryButton
           label="Create tether"
           onPress={handleCreate}
           loading={creating}
@@ -279,24 +275,6 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.textSecondary,
     marginBottom: spacing.xl,
-  },
-  field: {
-    marginBottom: spacing.xl,
-  },
-  label: {
-    ...typography.label,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    minHeight: 48,
-    fontSize: 16,
-    color: colors.textPrimary,
-    backgroundColor: colors.surfaceAlt,
   },
   helper: {
     ...typography.caption,
