@@ -24,7 +24,7 @@ Peer accountability app — stay focused together by making work activity visibl
 1. Create a Supabase project and apply migrations from [`supabase/migrations/`](supabase/migrations/) in order — see [`supabase/README.md`](supabase/README.md).
 2. Configure the mobile app: copy `tether-mobile/.env.example` to `.env` and add your Supabase URL and anon key.
 3. Configure the extension: copy `tether-extension/config.example.js` to `config.js` — see [`tether-extension/README.md`](tether-extension/README.md).
-4. Configure the desktop companion: copy `tether-desktop/config.example.js` to `config.js` — see [`tether-desktop/README.md`](tether-desktop/README.md).
+4. Configure the desktop companion: copy `tether-desktop/.env.example` to `.env` — see [`tether-desktop/README.md`](tether-desktop/README.md).
 5. Sign up in the mobile app, sign into the desktop companion (Mac or Windows), then create a tether and select detected apps.
 6. As the tether creator, open **Rules** and add or remove allowed websites and apps from any member's synced inventory.
 7. Each member signs into the Chrome extension with the same account. Only allowlisted sites sync.

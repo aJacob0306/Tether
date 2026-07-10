@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -18,9 +19,15 @@ import {
   LoadingState,
   SectionHeader,
   TetherCard,
-} from "../../components/ui";
-import { colors, radius, spacing, typography } from "../../constants/theme";
-import { fetchMyTethers, type TetherSummary } from "../../lib/tethers";
+} from "../../../components/ui";
+import { colors, radius, spacing, typography } from "../../../constants/theme";
+import { setMyActiveTether } from "../../../lib/profile";
+import {
+  deleteTether,
+  fetchMyTethers,
+  leaveTether,
+  type TetherSummary,
+} from "../../../lib/tethers";
 
 type SortKey = "recent" | "name";
 
@@ -32,6 +39,7 @@ export default function TetherListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("recent");
+  const [busyTetherId, setBusyTetherId] = useState<string | null>(null);
 
   const loadTethers = useCallback(async () => {
     setError("");
@@ -63,6 +71,7 @@ export default function TetherListScreen() {
     });
 
     return matches.sort((a, b) => {
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
       if (sortBy === "name") return a.name.localeCompare(b.name);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -70,8 +79,75 @@ export default function TetherListScreen() {
 
   const hasTethers = tethers.length > 0;
 
+  async function handleSetActive(tether: TetherSummary) {
+    if (tether.isActive || busyTetherId) return;
+    setBusyTetherId(tether.id);
+    setError("");
+    try {
+      await setMyActiveTether(tether.id);
+      setTethers((prev) =>
+        prev
+          .map((row) => ({
+            ...row,
+            isActive: row.id === tether.id,
+          }))
+          .sort((a, b) => {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          }),
+      );
+    } catch (err) {
+      Alert.alert(
+        "Couldn’t set active tether",
+        err instanceof Error ? err.message : "Failed to set active tether.",
+      );
+    } finally {
+      setBusyTetherId(null);
+    }
+  }
+
+  function handleLeaveOrDelete(tether: TetherSummary) {
+    if (busyTetherId) return;
+
+    const isCreator = tether.isCreator;
+    const title = isCreator ? "Delete tether?" : "Leave tether?";
+    const message = isCreator
+      ? `Delete “${tether.name}” for everyone? This cannot be undone.`
+      : `Leave “${tether.name}”? You can rejoin later with an invite code.`;
+
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: isCreator ? "Delete" : "Leave",
+        style: "destructive",
+        onPress: async () => {
+          setBusyTetherId(tether.id);
+          try {
+            if (isCreator) {
+              await deleteTether(tether.id);
+            } else {
+              await leaveTether(tether.id);
+            }
+            setTethers((prev) => prev.filter((row) => row.id !== tether.id));
+          } catch (err) {
+            Alert.alert(
+              isCreator ? "Couldn’t delete tether" : "Couldn’t leave tether",
+              err instanceof Error
+                ? err.message
+                : isCreator
+                  ? "Failed to delete tether."
+                  : "Failed to leave tether.",
+            );
+          } finally {
+            setBusyTetherId(null);
+          }
+        },
+      },
+    ]);
+  }
+
   return (
-    <AppScreen>
+    <AppScreen edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <View style={styles.brandMark}>
@@ -179,6 +255,9 @@ export default function TetherListScreen() {
           ) : null}
 
           <SectionHeader title="Your tethers" count={visibleTethers.length} />
+          <Text style={styles.swipeHint}>
+            Swipe left for Active or Leave/Delete.
+          </Text>
 
           <FlatList
             style={styles.list}
@@ -196,7 +275,11 @@ export default function TetherListScreen() {
                 name={item.name}
                 memberCount={item.memberCount}
                 inviteCode={item.invite_code}
+                isActive={item.isActive}
+                isCreator={item.isCreator}
                 onPress={() => router.push(`/tether/${item.id}`)}
+                onSetActive={() => handleSetActive(item)}
+                onLeaveOrDelete={() => handleLeaveOrDelete(item)}
               />
             )}
           />
@@ -320,6 +403,11 @@ const styles = StyleSheet.create({
   },
   sortChipTextActive: {
     color: colors.accentSoft,
+  },
+  swipeHint: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginBottom: spacing.md,
   },
   list: {
     flex: 1,

@@ -22,7 +22,13 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import { useDeviceStatus } from "../../hooks/useDeviceStatus";
-import { fetchMyProfile, updateMyDisplayName } from "../../lib/profile";
+import {
+  fetchMyActiveTetherOptions,
+  fetchMyProfile,
+  setMyActiveTether,
+  updateMyDisplayName,
+  type ActiveTetherOption,
+} from "../../lib/profile";
 import { supabase, type ActiveTab } from "../../lib/supabase";
 
 function StatusText({ connected, label }: { connected: boolean; label: string }) {
@@ -55,6 +61,11 @@ export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
   const { status: deviceStatus } = useDeviceStatus();
   const [pushEnabled, setPushEnabled] = useState(true);
+  const [tethers, setTethers] = useState<ActiveTetherOption[]>([]);
+  const [activeTetherId, setActiveTetherId] = useState<string | null>(null);
+  const [activeTetherLoading, setActiveTetherLoading] = useState(true);
+  const [savingActiveTether, setSavingActiveTether] = useState(false);
+  const [activeTetherError, setActiveTetherError] = useState("");
 
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
   const email = session?.user.email;
@@ -76,10 +87,42 @@ export default function SettingsScreen() {
     setActiveTab(tab);
   }, []);
 
+  const loadActiveTether = useCallback(async () => {
+    setActiveTetherError("");
+    try {
+      const options = await fetchMyActiveTetherOptions();
+      setTethers(options.tethers);
+      setActiveTetherId(options.activeTetherId);
+    } catch (err) {
+      setActiveTetherError(
+        err instanceof Error ? err.message : "Failed to load active tether.",
+      );
+    } finally {
+      setActiveTetherLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadProfile();
     loadConnections();
-  }, [loadConnections, loadProfile]);
+    loadActiveTether();
+  }, [loadActiveTether, loadConnections, loadProfile]);
+
+  async function handleSelectActiveTether(tetherId: string) {
+    if (tetherId === activeTetherId) return;
+    setSavingActiveTether(true);
+    setActiveTetherError("");
+    try {
+      const nextId = await setMyActiveTether(tetherId);
+      setActiveTetherId(nextId);
+    } catch (err) {
+      setActiveTetherError(
+        err instanceof Error ? err.message : "Failed to set active tether.",
+      );
+    } finally {
+      setSavingActiveTether(false);
+    }
+  }
 
   async function handleSaveDisplayName() {
     setSavingName(true);
@@ -150,6 +193,63 @@ export default function SettingsScreen() {
             </Text>
           ) : null}
         </Card>
+
+        <View style={styles.sectionGap}>
+          <SectionHeader title="Active tether" />
+          <Text style={styles.sectionHint}>
+            When an app or site is allowed in more than one tether, time counts toward
+            your active tether.
+          </Text>
+          <Card padded={false}>
+            {activeTetherLoading ? (
+              <View style={styles.inlineLoader}>
+                <ActivityIndicator color={colors.accentSoft} />
+              </View>
+            ) : tethers.length === 0 ? (
+              <ListRow
+                icon="link-outline"
+                label="No tethers yet"
+                hint="Create or join a tether first"
+                last
+              />
+            ) : tethers.length === 1 ? (
+              <ListRow
+                icon="checkmark-circle"
+                label={tethers[0].name}
+                hint="Automatically selected — your only tether"
+                last
+              />
+            ) : (
+              tethers.map((tether, index) => {
+                const selected = tether.id === activeTetherId;
+                return (
+                  <ListRow
+                    key={tether.id}
+                    icon={selected ? "checkmark-circle" : "ellipse-outline"}
+                    label={tether.name}
+                    hint={selected ? "Counting work here when tools overlap" : "Tap to make active"}
+                    onPress={() => handleSelectActiveTether(tether.id)}
+                    showChevron={false}
+                    last={index === tethers.length - 1}
+                  />
+                );
+              })
+            )}
+          </Card>
+          {savingActiveTether ? (
+            <Text style={styles.savingHint}>Updating active tether…</Text>
+          ) : null}
+          {activeTetherError ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {activeTetherError}
+            </Text>
+          ) : null}
+          {tethers.length > 1 && !activeTetherId && !activeTetherLoading ? (
+            <Text style={styles.warningHint}>
+              Pick an active tether so overlapping apps and sites can be attributed.
+            </Text>
+          ) : null}
+        </View>
 
         <View style={styles.sectionGap}>
           <SectionHeader title="Connections" />
@@ -301,6 +401,25 @@ const styles = StyleSheet.create({
   },
   sectionGap: {
     marginTop: spacing.xl,
+  },
+  sectionHint: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  inlineLoader: {
+    paddingVertical: spacing.xl,
+    alignItems: "center",
+  },
+  savingHint: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginTop: spacing.sm,
+  },
+  warningHint: {
+    ...typography.subhead,
+    color: colors.idleSoft,
+    marginTop: spacing.md,
   },
   statusText: {
     flexDirection: "row",

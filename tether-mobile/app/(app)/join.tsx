@@ -9,6 +9,7 @@ import {
   TextInputField,
 } from "../../components/ui";
 import { colors, radius, spacing, typography } from "../../constants/theme";
+import { ensureMyActiveTether } from "../../lib/profile";
 import { joinTether } from "../../lib/tethers";
 
 export default function JoinTetherScreen() {
@@ -26,6 +27,7 @@ export default function JoinTetherScreen() {
     setError("");
     try {
       const tetherId = await joinTether(inviteCode);
+      await ensureMyActiveTether().catch(() => null);
       router.replace(`/tether/${tetherId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to join tether.");

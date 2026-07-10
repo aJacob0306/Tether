@@ -20,6 +20,7 @@ const SESSION_STATE_KEY = "tether_work_session_state";
 const EMPTY_STATE = {
   openSessionId: null,
   openSessionDomain: null,
+  openSessionTetherId: null,
   lastSyncAt: null,
 };
 
@@ -54,6 +55,7 @@ function stateFromSession(session, lastSyncAt) {
   return {
     openSessionId: session.id,
     openSessionDomain: session.domain,
+    openSessionTetherId: session.tether_id ?? null,
     lastSyncAt: lastSyncAt ?? session.updated_at ?? session.started_at,
   };
 }
@@ -100,9 +102,9 @@ async function loadOpenSessionState(nowIso) {
   return existing?.id ? stateFromSession(existing, nowIso) : { ...EMPTY_STATE };
 }
 
-async function startSessionState({ domain, url, title, nowIso }) {
+async function startSessionState({ domain, url, title, tetherId, nowIso }) {
   try {
-    const session = await startWorkSession({ domain, url, title });
+    const session = await startWorkSession({ domain, url, title, tetherId });
     if (!session?.id) {
       throw new Error("Failed to start work session.");
     }
@@ -119,8 +121,8 @@ async function startSessionState({ domain, url, title, nowIso }) {
   }
 }
 
-async function startNewWorkSession({ domain, url, title, nowIso }) {
-  const state = await startSessionState({ domain, url, title, nowIso });
+async function startNewWorkSession({ domain, url, title, tetherId, nowIso }) {
+  const state = await startSessionState({ domain, url, title, tetherId, nowIso });
 
   notifyPeersStartedWorking(domain).catch((error) => {
     console.log("[Tether] Work-start notify failed:", error.message);
@@ -156,12 +158,12 @@ export async function closeTrackingForIdle() {
   ]);
 }
 
-export async function syncWorkSession(tab) {
+export async function syncWorkSession(tab, tetherId = null) {
   if (!tab?.url) return;
 
   let state = await loadSessionState();
 
-  if (!isTrackableUrl(tab.url)) {
+  if (!isTrackableUrl(tab.url) || !tetherId) {
     await closeStoredSession(state);
     await clearSessionState();
     return;
@@ -187,19 +189,24 @@ export async function syncWorkSession(tab) {
     }
 
     if (!state.openSessionId) {
-      await saveAndReturnState(await startNewWorkSession({ domain, url, title, nowIso }));
+      await saveAndReturnState(
+        await startNewWorkSession({ domain, url, title, tetherId, nowIso }),
+      );
       return;
     }
 
-    if (state.openSessionDomain === domain) {
+    if (state.openSessionDomain === domain && state.openSessionTetherId === tetherId) {
       const updated = await updateWorkSessionTab(state.openSessionId, { url, title });
       if (!updated?.id) {
         state = await loadOpenSessionState(nowIso);
         if (!state.openSessionId) {
-          state = await startNewWorkSession({ domain, url, title, nowIso });
-        } else if (state.openSessionDomain !== domain) {
+          state = await startNewWorkSession({ domain, url, title, tetherId, nowIso });
+        } else if (
+          state.openSessionDomain !== domain ||
+          state.openSessionTetherId !== tetherId
+        ) {
           await closeWorkSession(state.openSessionId);
-          state = await startNewWorkSession({ domain, url, title, nowIso });
+          state = await startNewWorkSession({ domain, url, title, tetherId, nowIso });
         } else {
           await updateWorkSessionTab(state.openSessionId, { url, title });
         }
@@ -213,7 +220,9 @@ export async function syncWorkSession(tab) {
     }
 
     await closeWorkSession(state.openSessionId);
-    await saveAndReturnState(await startNewWorkSession({ domain, url, title, nowIso }));
+    await saveAndReturnState(
+      await startNewWorkSession({ domain, url, title, tetherId, nowIso }),
+    );
   } catch (error) {
     console.log("[Tether] Session sync failed:", error.message);
     try {

@@ -5,7 +5,7 @@ Electron companion for desktop app support on **macOS and Windows**. It signs in
 ## Setup
 
 1. Apply Supabase migrations through `018_tether_peer_detected_tools.sql`.
-2. Copy `config.example.js` to `config.js` and add your Supabase URL and publishable anon key.
+2. Copy `.env.example` to `.env` and add your Supabase URL and publishable anon key.
 3. Install and start **on the same machine** where you will run the app (do not copy `node_modules` from another OS):
 
 ```bash

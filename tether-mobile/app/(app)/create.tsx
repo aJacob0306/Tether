@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -21,8 +22,10 @@ import {
   ToolChip,
 } from "../../components/ui";
 import { colors, radius, spacing, typography } from "../../constants/theme";
+import { findMyExistingAllowlistTargets, formatAllowlistConflictMessage } from "../../lib/allowlist";
 import { fetchDetectedApps } from "../../lib/detected-tools";
 import { getErrorMessage } from "../../lib/errors";
+import { ensureMyActiveTether } from "../../lib/profile";
 import { createTether } from "../../lib/tethers";
 import type { DetectedTool } from "../../lib/supabase";
 
@@ -118,7 +121,35 @@ export default function CreateTetherScreen() {
     setCreating(true);
     setError("");
     try {
+      const warnings: string[] = [];
+      for (const app of selectedApps) {
+        const conflicts = await findMyExistingAllowlistTargets(
+          "app",
+          app.value,
+          app.bundle_identifier,
+        );
+        if (conflicts.length) {
+          warnings.push(
+            formatAllowlistConflictMessage(app.display_name || app.value, conflicts),
+          );
+        }
+      }
+
+      if (warnings.length) {
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert("Overlapping apps", warnings[0], [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Create anyway", onPress: () => resolve(true) },
+          ]);
+        });
+        if (!confirmed) {
+          setCreating(false);
+          return;
+        }
+      }
+
       const tether = await createTether(name, selectedApps);
+      await ensureMyActiveTether().catch(() => null);
       router.replace(`/tether/${tether.id}`);
     } catch (err) {
       setError(getErrorMessage(err, "Failed to create tether."));

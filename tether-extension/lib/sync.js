@@ -1,4 +1,8 @@
-import { getAllowlist, urlMatchesAllowlist } from "./allowlist.js";
+import {
+  getAllowlist,
+  resolveDomainTetherId,
+  urlMatchesAllowlist,
+} from "./allowlist.js";
 import {
   getActiveBrowserTab,
   isChromeFocused,
@@ -57,12 +61,15 @@ async function syncActiveTabOnce() {
   const trackable = isTrackableUrl(tab.url);
   const allowlist = await getAllowlist();
   const hasAllowlist = allowlist.domains.length > 0;
-  const allowed = trackable && hasAllowlist && urlMatchesAllowlist(tab.url, allowlist.domains);
+  const matchesAllowlist =
+    trackable && hasAllowlist && urlMatchesAllowlist(tab.url, allowlist.domains);
+  const tetherId = matchesAllowlist ? resolveDomainTetherId(tab.url, allowlist) : null;
+  const allowed = Boolean(matchesAllowlist && tetherId);
   let synced = false;
 
   if (allowed) {
     await syncTab(tab);
-    await syncWorkSession(tab);
+    await syncWorkSession(tab, tetherId);
     synced = true;
   } else {
     await closeTrackingForBackground().catch(() => {});

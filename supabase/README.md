@@ -43,6 +43,10 @@ supabase db push
 | `018_tether_peer_detected_tools.sql` | Lets tether peers read each other's detected desktop apps for allowlist setup |
 | `019_work_session_effective_end.sql` | Caps reported work duration when stale sessions close with inflated end times |
 | `020_tether_member_permissions.sql` | Adds delegated allowlist-management permissions for tether members |
+| `021_device_heartbeat_status.sql` | Device heartbeat helpers for companion connection status |
+| `022_personal_log.sql` | Personal log RPC: lifetime/today totals, streak, top tools, weekly days, per-tether totals |
+| `023_active_tether_attribution.sql` | Active tether preference, `work_sessions.tether_id`, conflict helpers, attributed board/log RPCs |
+| `024_leave_delete_tether.sql` | `leave_tether` (members) and `delete_tether` (creators) RPCs |
 
 Apply migrations in order.
 

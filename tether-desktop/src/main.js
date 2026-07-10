@@ -1,27 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
+import { config as loadEnv } from "dotenv";
 import { app, BrowserWindow, ipcMain, powerMonitor } from "electron";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { getPlatformAdapter } from "./platform/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "..", "config.js");
+const envPath = path.join(__dirname, "..", ".env");
+loadEnv({ path: envPath });
 const platformAdapter = getPlatformAdapter();
 
-async function loadConfig() {
-  try {
-    return await import(pathToFileURL(configPath).href);
-  } catch {
-    return {};
-  }
-}
-
-const {
-  SUPABASE_ANON_KEY: RAW_SUPABASE_ANON_KEY,
-  SUPABASE_URL: RAW_SUPABASE_URL,
-} = await loadConfig();
+const RAW_SUPABASE_URL = process.env.SUPABASE_URL;
+const RAW_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_URL = RAW_SUPABASE_URL?.trim().replace(/\/$/, "") ?? "https://example.supabase.co";
 const SUPABASE_ANON_KEY = RAW_SUPABASE_ANON_KEY?.trim() ?? "sb_publishable_missing";
 const hasSupabaseConfig = Boolean(RAW_SUPABASE_URL?.trim() && RAW_SUPABASE_ANON_KEY?.trim());
@@ -86,7 +78,7 @@ function sendTrackingStatus(message) {
 
 function assertConfig() {
   if (!hasSupabaseConfig) {
-    throw new Error("Copy config.example.js to config.js and add Supabase credentials.");
+    throw new Error("Add SUPABASE_URL and SUPABASE_ANON_KEY to tether-desktop/.env.");
   }
 }
 
@@ -294,10 +286,16 @@ async function getFrontmostApp() {
   return platformAdapter.getFrontmostApp();
 }
 
+async function fetchActiveTetherId() {
+  const { data, error } = await supabase.rpc("ensure_my_active_tether");
+  if (error) throw error;
+  return typeof data === "string" ? data : null;
+}
+
 async function fetchAllowedAppTargets() {
   const { data, error } = await supabase
     .from("tether_allowed_targets")
-    .select("id,value,display_name,bundle_identifier,platform,metadata")
+    .select("id,tether_id,value,display_name,bundle_identifier,platform,metadata")
     .eq("target_type", "app")
     .order("value", { ascending: true });
 
@@ -346,8 +344,30 @@ function matchesAllowedApp(activeApp, appTarget) {
   );
 }
 
-function findAllowedApp(activeApp, appTargets) {
-  return appTargets.find((appTarget) => matchesAllowedApp(activeApp, appTarget)) ?? null;
+function resolveAllowedApp(activeApp, appTargets, activeTetherId) {
+  const matches = appTargets.filter((appTarget) => matchesAllowedApp(activeApp, appTarget));
+  if (!matches.length) return null;
+
+  const uniqueTetherIds = [
+    ...new Set(matches.map((match) => match.tether_id).filter(Boolean)),
+  ];
+
+  let tetherId = null;
+  if (uniqueTetherIds.length === 1) {
+    tetherId = uniqueTetherIds[0];
+  } else if (activeTetherId && uniqueTetherIds.includes(activeTetherId)) {
+    tetherId = activeTetherId;
+  } else {
+    return null;
+  }
+
+  const preferred =
+    matches.find((match) => match.tether_id === tetherId) ?? matches[0];
+
+  return {
+    ...preferred,
+    resolved_tether_id: tetherId,
+  };
 }
 
 async function getOpenWorkSession() {
@@ -355,7 +375,7 @@ async function getOpenWorkSession() {
   const { data, error } = await supabase
     .from("work_sessions")
     .select(
-      "id,user_id,domain,url,title,started_at,ended_at,target_type,target_value,target_display_name,bundle_identifier,platform",
+      "id,user_id,domain,url,title,started_at,ended_at,tether_id,target_type,target_value,target_display_name,bundle_identifier,platform",
     )
     .eq("user_id", session.user.id)
     .is("ended_at", null)
@@ -410,6 +430,7 @@ async function updateAppWorkSession(sessionId, appTarget, updatedAt = new Date()
       domain: label,
       title: label,
       updated_at: updatedAt,
+      tether_id: appTarget.resolved_tether_id ?? appTarget.tether_id ?? null,
       target_type: "app",
       target_value: appTarget.value,
       target_display_name: label,
@@ -431,6 +452,7 @@ async function updateAppWorkSession(sessionId, appTarget, updatedAt = new Date()
 async function startAppWorkSession(appTarget, startedAt = new Date().toISOString()) {
   const session = await ensureSession();
   const label = appTarget.display_name || appTarget.value;
+  const tetherId = appTarget.resolved_tether_id ?? appTarget.tether_id ?? null;
   const payload = {
     user_id: session.user.id,
     domain: label,
@@ -438,6 +460,7 @@ async function startAppWorkSession(appTarget, startedAt = new Date().toISOString
     title: label,
     started_at: startedAt,
     updated_at: startedAt,
+    tether_id: tetherId,
     target_type: "app",
     target_value: appTarget.value,
     target_display_name: label,
@@ -568,21 +591,26 @@ async function syncActiveAppOnce() {
     return;
   }
 
-  const [activeApp, appTargets] = await Promise.all([
+  const [activeApp, appTargets, activeTetherId] = await Promise.all([
     getFrontmostApp(),
     fetchAllowedAppTargets(),
+    fetchActiveTetherId().catch(() => null),
   ]);
-  const allowedApp = findAllowedApp(activeApp, appTargets);
+  const allowedApp = resolveAllowedApp(activeApp, appTargets, activeTetherId);
   const nowIso = new Date().toISOString();
 
   if (!allowedApp) {
     await closeTrackedAppSessionIfNeeded(trackingState);
     await clearDesktopActiveApp();
-    sendTrackingStatus(`No allowlisted app active (${activeApp.displayName}).`);
+    sendTrackingStatus(
+      activeTetherId
+        ? `No allowlisted app active (${activeApp.displayName}).`
+        : `Pick an active tether in the mobile app to track overlapping apps (${activeApp.displayName}).`,
+    );
     return;
   }
 
-  const targetKey = appMatchKey(allowedApp);
+  const targetKey = `${appMatchKey(allowedApp)}:${allowedApp.resolved_tether_id}`;
   const targetLabel = allowedApp.display_name || allowedApp.value;
 
   if (trackingState.openSessionId && trackingState.targetKey === targetKey) {
@@ -591,6 +619,7 @@ async function syncActiveAppOnce() {
     await writeJson(TRACKING_STATE_FILE, {
       ...trackingState,
       lastActiveAt: nowIso,
+      tetherId: allowedApp.resolved_tether_id,
     });
     sendTrackingStatus(`Tracking ${targetLabel}.`);
     return;
@@ -604,6 +633,7 @@ async function syncActiveAppOnce() {
     openSessionId: workSession.id,
     targetKey,
     targetLabel,
+    tetherId: allowedApp.resolved_tether_id,
     lastActiveAt: nowIso,
     sessionStartedAt: workSession.started_at ?? nowIso,
   });

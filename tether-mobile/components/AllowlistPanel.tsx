@@ -24,6 +24,8 @@ import {
   addDetectedAppAllowlistEntry,
   addTetherAllowlistEntry,
   fetchTetherAllowlist,
+  findMyAllowlistConflicts,
+  formatAllowlistConflictMessage,
   removeTetherAllowlistEntry,
 } from "../lib/allowlist";
 import { fetchTetherDetectedApps } from "../lib/detected-tools";
@@ -78,6 +80,7 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
   const [websiteValue, setWebsiteValue] = useState("");
   const [savingWebsite, setSavingWebsite] = useState(false);
   const [sheetError, setSheetError] = useState("");
+  const [sheetWarning, setSheetWarning] = useState("");
 
   const appEntries = useMemo(
     () => entries.filter((entry) => entry.target_type === "app"),
@@ -156,10 +159,22 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
   async function handleAddDetectedApp(app: DetectedTool) {
     setAddingDetectedAppId(app.id);
     setSheetError("");
+    setSheetWarning("");
 
     try {
+      const conflicts = await findMyAllowlistConflicts(
+        tetherId,
+        "app",
+        app.value,
+        app.bundle_identifier,
+      );
       const entry = await addDetectedAppAllowlistEntry(tetherId, app);
       insertEntry(entry);
+      if (conflicts.length) {
+        setSheetWarning(
+          formatAllowlistConflictMessage(app.display_name || app.value, conflicts),
+        );
+      }
     } catch (err) {
       setSheetError(err instanceof Error ? err.message : "Failed to add app.");
     } finally {
@@ -170,11 +185,18 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
   async function handleAddWebsite() {
     setSavingWebsite(true);
     setSheetError("");
+    setSheetWarning("");
 
     try {
+      const conflicts = await findMyAllowlistConflicts(tetherId, "domain", websiteValue);
       const entry = await addTetherAllowlistEntry(tetherId, "domain", websiteValue);
       insertEntry(entry);
       setWebsiteValue("");
+      if (conflicts.length) {
+        setSheetWarning(
+          formatAllowlistConflictMessage(entry.display_name ?? entry.value, conflicts),
+        );
+      }
     } catch (err) {
       setSheetError(err instanceof Error ? err.message : "Failed to add website.");
     } finally {
@@ -198,6 +220,7 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
 
   function openSheet() {
     setSheetError("");
+    setSheetWarning("");
     setSheetVisible(true);
   }
 
@@ -463,6 +486,12 @@ export function AllowlistPanel({ tetherId, canManageAllowlist }: AllowlistPanelP
           </View>
         )}
 
+        {sheetWarning ? (
+          <Text style={styles.warning} accessibilityRole="alert">
+            {sheetWarning}
+          </Text>
+        ) : null}
+
         {sheetError ? (
           <Text style={styles.error} accessibilityRole="alert">
             {sheetError}
@@ -534,6 +563,16 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.danger,
     marginTop: spacing.md,
+  },
+  warning: {
+    ...typography.subhead,
+    color: colors.idleSoft,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.idle,
+    backgroundColor: colors.surfaceAlt,
   },
   segment: {
     flexDirection: "row",

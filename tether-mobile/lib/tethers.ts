@@ -23,15 +23,38 @@ function generateInviteCode(length = 8): string {
   return code;
 }
 
-export type TetherSummary = Tether & { memberCount: number };
+export type TetherSummary = Tether & {
+  memberCount: number;
+  isCreator: boolean;
+  isActive: boolean;
+};
 
 export async function fetchMyTethers(): Promise<TetherSummary[]> {
-  const { data, error } = await supabase
-    .from("tether_members")
-    .select("tethers(*)")
-    .order("joined_at", { ascending: false });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Not signed in.");
+  }
+
+  const [{ data, error }, profileResult] = await Promise.all([
+    supabase
+      .from("tether_members")
+      .select("tethers(*)")
+      .order("joined_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("active_tether_id")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ]);
 
   if (error) throw error;
+
+  const activeTetherId =
+    (profileResult.data as { active_tether_id: string | null } | null)?.active_tether_id ??
+    null;
 
   type Row = { tethers: Tether | Tether[] | null };
   const rows = (data ?? []) as Row[];
@@ -46,10 +69,17 @@ export async function fetchMyTethers(): Promise<TetherSummary[]> {
   const tethers = Array.from(uniqueTethers.values());
   const memberCounts = await fetchTetherMemberCounts(tethers.map((tether) => tether.id));
 
-  return tethers.map((tether) => ({
-    ...tether,
-    memberCount: memberCounts.get(tether.id) ?? 1,
-  }));
+  return tethers
+    .map((tether) => ({
+      ...tether,
+      memberCount: memberCounts.get(tether.id) ?? 1,
+      isCreator: tether.created_by === user.id,
+      isActive: tether.id === activeTetherId,
+    }))
+    .sort((a, b) => {
+      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 }
 
 async function fetchTetherMemberCounts(
@@ -177,6 +207,26 @@ export async function joinTether(inviteCode: string): Promise<string> {
   }
 
   return data as string;
+}
+
+export async function leaveTether(tetherId: string): Promise<void> {
+  const { error } = await supabase.rpc("leave_tether", {
+    p_tether_id: tetherId,
+  });
+
+  if (error) {
+    throw new Error(getErrorMessage(error, "Failed to leave tether."));
+  }
+}
+
+export async function deleteTether(tetherId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_tether", {
+    p_tether_id: tetherId,
+  });
+
+  if (error) {
+    throw new Error(getErrorMessage(error, "Failed to delete tether."));
+  }
 }
 
 export async function fetchTether(tetherId: string): Promise<Tether> {

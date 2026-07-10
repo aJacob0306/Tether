@@ -30,7 +30,7 @@ Use this before a closed beta and again before any public marketing push. The go
 
 ## Desktop Companion
 
-- Copy `tether-desktop/config.example.js` to `tether-desktop/config.js` and set the Supabase URL and publishable anon key.
+- Copy `tether-desktop/.env.example` to `tether-desktop/.env` and set the Supabase URL and publishable anon key.
 - Install dependencies on each target OS instead of copying `node_modules` across machines.
 - On macOS, grant any required System Events or Accessibility permission.
 - On Windows, verify the app can scan Start Menu shortcuts and read the foreground process.

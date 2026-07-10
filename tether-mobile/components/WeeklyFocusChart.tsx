@@ -6,9 +6,11 @@ import type { MemberActivity, WeeklyWorkDay } from "../lib/supabase";
 
 type WeeklyFocusChartProps = {
   weekDays: WeeklyWorkDay[];
-  members: MemberActivity[];
+  members?: MemberActivity[];
   dayStart: Date;
   onDayPress?: (dayStart: Date) => void;
+  overline?: string;
+  title?: string;
 };
 
 const BAR_MAX_HEIGHT = 96;
@@ -22,9 +24,11 @@ function formatHours(ms: number): string {
 
 export function WeeklyFocusChart({
   weekDays,
-  members,
+  members = [],
   dayStart,
   onDayPress,
+  overline = "THIS WEEK",
+  title = "Group focus",
 }: WeeklyFocusChartProps) {
   const [, setTick] = useState(0);
   const workingMembers = members.filter(
@@ -59,8 +63,8 @@ export function WeeklyFocusChart({
     <View style={styles.card}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.overline}>THIS WEEK</Text>
-          <Text style={styles.title}>Group focus</Text>
+          <Text style={styles.overline}>{overline}</Text>
+          <Text style={styles.title}>{title}</Text>
         </View>
         <Text style={styles.total}>{formatFocusDurationFromMs(totalWeekMs)}</Text>
       </View>

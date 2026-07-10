@@ -25,6 +25,26 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       return "Detailed log not set up. Run supabase/migrations/012_tether_daily_member_logs.sql in Supabase.";
     }
 
+    if (message.includes("get_my_personal_log")) {
+      return "Personal log not set up. Run supabase/migrations/022_personal_log.sql in Supabase.";
+    }
+
+    if (
+      message.includes("leave_tether") ||
+      message.includes("delete_tether")
+    ) {
+      return "Leave/delete not set up. Run supabase/migrations/024_leave_delete_tether.sql in Supabase.";
+    }
+
+    if (
+      message.includes("active_tether") ||
+      message.includes("ensure_my_active_tether") ||
+      message.includes("set_my_active_tether") ||
+      message.includes("find_my_allowlist_conflicts")
+    ) {
+      return "Active tether not set up. Run supabase/migrations/023_active_tether_attribution.sql in Supabase.";
+    }
+
     if (message.includes("tether_allowed_targets") || message.includes("get_my_allowed_targets")) {
       return "Allowlist not set up. Run supabase/migrations/013_tether_allowed_targets.sql in Supabase.";
     }

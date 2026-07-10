@@ -316,7 +316,7 @@ export async function clearActiveTab() {
 export async function getOpenWorkSession() {
   const { session, response } = await authedRestRequest((authSession) =>
     fetch(
-      `${SUPABASE_URL}/rest/v1/work_sessions?user_id=eq.${authSession.user.id}&ended_at=is.null&select=id,domain,url,title,started_at,updated_at,ended_at&limit=1`,
+      `${SUPABASE_URL}/rest/v1/work_sessions?user_id=eq.${authSession.user.id}&ended_at=is.null&select=id,domain,url,title,started_at,updated_at,ended_at,tether_id&limit=1`,
       { headers: authHeaders(authSession.access_token) },
     ),
   );
@@ -325,7 +325,7 @@ export async function getOpenWorkSession() {
   return rows[0] ?? null;
 }
 
-export async function startWorkSession({ domain, url, title }) {
+export async function startWorkSession({ domain, url, title, tetherId = null }) {
   const { session, response } = await authedRestRequest((authSession) =>
     fetch(`${SUPABASE_URL}/rest/v1/work_sessions`, {
       method: "POST",
@@ -338,6 +338,10 @@ export async function startWorkSession({ domain, url, title }) {
         domain,
         url,
         title,
+        tether_id: tetherId,
+        target_type: "domain",
+        target_value: domain,
+        target_display_name: domain,
       }),
     }),
   );
