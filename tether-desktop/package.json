@@ -6,7 +6,8 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "fix-electron": "node ./node_modules/electron/install.js",
+    "postinstall": "node scripts/install-electron.mjs",
+    "fix-electron": "node scripts/install-electron.mjs",
     "reinstall": "npm run clean && npm install",
     "clean": "node -e \"require('fs').rmSync('node_modules',{recursive:true,force:true})\""
   },
