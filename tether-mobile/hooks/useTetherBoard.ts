@@ -88,6 +88,7 @@ export function useTetherBoard(tetherId: string | undefined) {
   });
   const localDayStartRef = useRef(initialDayWindow.dayStart.getTime());
   const logDayWindowRef = useRef(initialDayWindow);
+  const channelInstanceRef = useRef(Math.random().toString(36).slice(2));
 
   const loadLogDay = useCallback(
     async (dayWindow: LocalDayWindow) => {
@@ -215,7 +216,7 @@ export function useTetherBoard(tetherId: string | undefined) {
       });
 
     const channel = supabase
-      .channel(`tether-board-${tetherId}`)
+      .channel(`tether-board-${tetherId}-${channelInstanceRef.current}`)
       .on(
         "postgres_changes",
         {
