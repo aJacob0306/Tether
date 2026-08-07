@@ -66,7 +66,7 @@ Avoid:
 Add Sentry in this order:
 
 1. Mobile app: catch Expo/React Native crashes and route-level errors.
-2. Desktop companion: catch Electron main-process errors, platform detection failures, and sync failures.
+2. Desktop companion: catch tracking-loop errors, platform detection failures, and sync failures.
 3. Chrome extension: catch service worker errors, auth refresh failures, and sync failures.
 4. Edge function: log push delivery failures with request IDs and user-safe metadata.
 

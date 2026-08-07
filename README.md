@@ -8,8 +8,15 @@ Peer accountability app — stay focused together by making work activity visibl
 |--------|-------------|
 | [`tether-mobile/`](tether-mobile/) | Expo mobile app (sign-up, tethers, group board) |
 | [`tether-extension/`](tether-extension/) | Chrome extension (syncs active tab to Supabase) |
-| [`tether-desktop/`](tether-desktop/) | Electron desktop companion (macOS + Windows: detects installed apps and tracks allowlisted desktop apps) |
+| [`tether-desktop-py/`](tether-desktop-py/) | Python desktop companion (macOS + Windows: detects installed apps and tracks allowlisted desktop apps) |
+| [`tether-desktop/`](tether-desktop/) | Previous Electron companion — being replaced by `tether-desktop-py/`, see below |
 | [`supabase/`](supabase/) | Database migrations |
+
+Both desktop companions read and write exactly the same tables and RPCs, so either one
+works against the current backend. The Python version is the one to develop against;
+the Electron version stays until the Python one has been verified on real Windows
+hardware. Do not run both at once on the same machine — they share state files and would
+each try to own the tracking session.
 
 ## Planning docs
 
@@ -24,7 +31,7 @@ Peer accountability app — stay focused together by making work activity visibl
 1. Create a Supabase project and apply migrations from [`supabase/migrations/`](supabase/migrations/) in order — see [`supabase/README.md`](supabase/README.md).
 2. Configure the mobile app: copy `tether-mobile/.env.example` to `.env` and add your Supabase URL and anon key.
 3. Configure the extension: copy `tether-extension/config.example.js` to `config.js` — see [`tether-extension/README.md`](tether-extension/README.md).
-4. Configure the desktop companion: copy `tether-desktop/.env.example` to `.env` — see [`tether-desktop/README.md`](tether-desktop/README.md).
+4. Configure the desktop companion: copy `tether-desktop-py/.env.example` to `.env` — see [`tether-desktop-py/README.md`](tether-desktop-py/README.md).
 5. Sign up in the mobile app, sign into the desktop companion (Mac or Windows), then create a tether and select detected apps.
 6. As the tether creator, open **Rules** and add or remove allowed websites and apps from any member's synced inventory.
 7. Each member signs into the Chrome extension with the same account. Only allowlisted sites sync.
@@ -34,8 +41,12 @@ cd tether-mobile && npm install && npm start
 ```
 
 ```bash
-cd tether-desktop && npm install && npm start
+cd tether-desktop-py && uv sync && uv run tether-desktop gui
 ```
+
+The desktop companion also runs headless, which is the fastest way to debug it:
+`uv run tether-desktop check` for a read-only preflight, `uv run tether-desktop track`
+to watch the tracking loop.
 
 ## Tether flow
 

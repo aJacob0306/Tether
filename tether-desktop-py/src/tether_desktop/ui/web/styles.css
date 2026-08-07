@@ -1,0 +1,403 @@
+/* Design tokens copied from tether-mobile/constants/theme.ts.
+   Keep these in sync with that file; it is the source of truth for the palette. */
+:root {
+  --background: #0d0e0f;
+  --surface: #1b1c1d;
+  --surface-alt: #121314;
+  --surface-raised: #151617;
+
+  --border: #2d2f31;
+  --border-strong: #3f3f46;
+
+  --accent: #945cb4;
+  --accent-soft: #e6b4ff;
+  --accent-muted: #5f435f;
+  --accent-border: #4d2d5d;
+  --accent-surface: #231a28;
+
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+
+  --working: #16a34a;
+  --working-soft: #34d399;
+  --working-surface: #052e26;
+  --working-border: #064e3b;
+  --idle-soft: #fbbf24;
+  --offline: #9ca3af;
+  --danger: #fca5a5;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-xxl: 24px;
+  --space-xxxl: 32px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI",
+    system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* The mobile app conveys depth with borders and layered surfaces, not shadows. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-height: 100%;
+  padding: var(--space-xxl) var(--space-xl) var(--space-xl);
+}
+
+/* -- type scale ---------------------------------------------------------- */
+
+.overline {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  line-height: 14px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.display {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  margin: var(--space-sm) 0 0;
+}
+
+.subhead {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  margin: var(--space-sm) 0 0;
+}
+
+.body-strong {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  margin: 0;
+}
+
+.caption {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  margin: 0;
+}
+
+/* -- cards --------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.card--accent {
+  border-color: var(--accent-border);
+}
+
+.card__header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+/* -- identity ------------------------------------------------------------ */
+
+.identity {
+  align-items: center;
+  display: flex;
+  gap: var(--space-md);
+}
+
+/* Initial-letter avatar, matching MemberCard on mobile. */
+.avatar {
+  align-items: center;
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  color: var(--accent-soft);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 18px;
+  font-weight: 700;
+  height: 44px;
+  justify-content: center;
+  text-transform: uppercase;
+  width: 44px;
+}
+
+.identity__text {
+  min-width: 0;
+}
+
+.identity__email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -- pills --------------------------------------------------------------- */
+
+.pill {
+  align-items: center;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+  letter-spacing: 0.8px;
+  line-height: 14px;
+  padding: var(--space-xs) var(--space-sm);
+  text-transform: uppercase;
+}
+
+.pill__dot {
+  background: currentColor;
+  border-radius: 50%;
+  height: 9px;
+  width: 9px;
+}
+
+.pill--working {
+  background: var(--working-surface);
+  border-color: var(--working-border);
+  color: var(--working-soft);
+}
+
+.pill--idle {
+  color: var(--idle-soft);
+}
+
+.pill--offline {
+  color: var(--offline);
+}
+
+/* Hollow dot for offline, mirroring the outline icon on mobile. */
+.pill--offline .pill__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.pill--busy {
+  color: var(--accent-soft);
+}
+
+.pill--busy .pill__dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill--busy .pill__dot {
+    animation: none;
+  }
+}
+
+/* -- forms --------------------------------------------------------------- */
+
+.field {
+  display: block;
+  margin-bottom: var(--space-md);
+}
+
+.field__label {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  margin-bottom: 6px;
+}
+
+.field__input {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  padding: var(--space-md);
+  transition: border-color 120ms ease;
+  width: 100%;
+}
+
+.field__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.field__input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* -- buttons ------------------------------------------------------------- */
+
+.button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  gap: var(--space-sm);
+  justify-content: center;
+  min-height: 50px;
+  padding: 0 var(--space-lg);
+  transition: opacity 120ms ease, background 120ms ease;
+  width: 100%;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.button:not(:disabled):active {
+  opacity: 0.85;
+}
+
+.button--primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.button--secondary {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--accent-soft);
+}
+
+.button--danger {
+  background: var(--surface);
+  border-color: var(--accent-border);
+  color: var(--danger);
+}
+
+.button + .button {
+  margin-top: var(--space-sm);
+}
+
+/* Spinner shown while a button's action is in flight. */
+.button__spinner {
+  animation: spin 700ms linear infinite;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-right-color: transparent;
+  display: none;
+  height: 14px;
+  width: 14px;
+}
+
+.button[data-busy="true"] .button__spinner {
+  display: block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button__spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* -- status -------------------------------------------------------------- */
+
+.status-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-text--error {
+  color: var(--danger);
+}
+
+.tracking__target {
+  align-items: center;
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.tracking__icon {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+  height: 32px;
+  object-fit: contain;
+  padding: 3px;
+  width: 32px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Native-feeling text selection: only inputs should be selectable. */
+body {
+  cursor: default;
+  user-select: none;
+}
+
+.field__input,
+.selectable {
+  user-select: text;
+}

@@ -30,10 +30,11 @@ Use this before a closed beta and again before any public marketing push. The go
 
 ## Desktop Companion
 
-- Copy `tether-desktop/.env.example` to `tether-desktop/.env` and set the Supabase URL and publishable anon key.
-- Install dependencies on each target OS instead of copying `node_modules` across machines.
-- On macOS, grant any required System Events or Accessibility permission.
-- On Windows, verify the app can scan Start Menu shortcuts and read the foreground process.
+- Copy `tether-desktop-py/.env.example` to `tether-desktop-py/.env` and set the Supabase URL and publishable anon key.
+- Run `uv sync` on each target OS instead of copying `.venv` across machines.
+- Run `uv run tether-desktop check` on each machine first; it validates config, OS access, and Supabase reads without writing anything.
+- On Windows, verify the app can scan Start Menu shortcuts and read the foreground process. The Windows adapter has unit tests but has not yet run on real Windows hardware, so treat this as the main open risk.
+- Confirm only one desktop companion runs per machine. The Electron build in `tether-desktop/` shares the same state files and would fight over the tracking session.
 - Confirm each signed-in device appears in `devices` and uploads detected apps to `detected_tools`.
 - Add one detected app to a tether allowlist and confirm foreground usage creates a work session.
 

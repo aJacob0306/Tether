@@ -1,4 +1,13 @@
-# Tether Desktop Companion
+# Tether Desktop Companion (Electron — being replaced)
+
+> **This version is being retired.** The companion has been rewritten in Python at
+> [`../tether-desktop-py/`](../tether-desktop-py/), which reads and writes the same
+> tables and RPCs. Use the Python version for new work; this one stays only until the
+> rewrite has been verified on real Windows hardware.
+>
+> Do not run both at once on the same machine. They share `device.json`,
+> `session.json`, and `tracking-state.json`, and would each try to own the tracking
+> session.
 
 Electron companion for desktop app support on **macOS and Windows**. It signs into Supabase, registers this computer in `devices`, scans installed apps, uploads them to `detected_tools`, and tracks the frontmost app when it matches a tether allowlist rule.
 

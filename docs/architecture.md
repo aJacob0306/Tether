@@ -80,16 +80,31 @@ Important areas:
 
 ### Desktop Companion
 
-Path: `tether-desktop/`
+Path: `tether-desktop-py/`
 
 The desktop companion watches foreground desktop apps. It also scans installed apps so tether creators can allowlist apps from each member's machine.
 
+It is written in Python. The OS-specific code and the user interface are both thin shells around logic that does not know which platform it is on, so the same tracker runs behind the CLI and the window, and both are testable without a Mac, a PC, or a display.
+
 Important areas:
 
-- `src/main.js`: Electron main process, auth, device registration, detected app upload, foreground tracking, and push trigger.
-- `src/platform/darwin.js`: macOS app discovery and frontmost-app detection.
-- `src/platform/win32.js`: Windows app discovery and foreground-process detection.
-- `src/renderer/`: small desktop UI for sign-in and status.
+- `src/tether_desktop/tracker.py`: the polling state machine that opens, updates, and closes work sessions.
+- `src/tether_desktop/matching.py`: pure allowlist matching, the logic that decides whether activity counts.
+- `src/tether_desktop/service.py`: wires auth, device registration, detected app upload, and tracking together for both shells.
+- `src/tether_desktop/platforms/`: `darwin.py` and `win32.py` behind one Protocol in `base.py`.
+- `src/tether_desktop/cli.py`: terminal interface, including a read-only `check` preflight.
+- `src/tether_desktop/ui/webview_window.py` and `ui/web/`: the desktop window, rendered in the OS webview so its styling matches the mobile app's design tokens. `ui/window.py` is a plain Tkinter fallback for machines with no webview runtime.
+
+The Supabase layer is split by concern: `auth.py`, `devices.py`, `detected_tools.py`, `sessions.py`, and `notify.py`.
+
+#### Replacing the Electron companion
+
+`tether-desktop/` is the previous Electron implementation. It writes to the same tables and RPCs and still works, but new work belongs in `tether-desktop-py/`. Two behavioral differences to know about:
+
+- The Python version does not yet handle sleep and lock events, which Electron got free from `powerMonitor`. It falls back to the idle threshold, so a session can stay open slightly longer after a lid close. Native `NSWorkspace` and `WM_POWERBROADCAST` handling is the follow-up.
+- The Python version finds more apps. On macOS it follows symlinks and reads binary `Info.plist` files, both of which the old `plutil` call missed. On Windows the PowerShell helper-path regex was invalid for .NET, and because every use sat inside a `try/catch`, the recursive executable, Steam, and process scans silently returned nothing.
+
+The Electron version should be removed once the Python one has been verified on real Windows hardware.
 
 ### Supabase
 
@@ -166,7 +181,7 @@ Start here if you are learning the codebase:
 4. `tether-mobile/lib/tethers.ts`
 5. `tether-extension/background.js`
 6. `tether-extension/lib/sync.js`
-7. `tether-desktop/src/main.js`
+7. `tether-desktop-py/src/tether_desktop/tracker.py`
 8. `supabase/README.md`
 9. `supabase/migrations/002_tethers.sql`
 10. `supabase/functions/send-work-started-push/index.ts`

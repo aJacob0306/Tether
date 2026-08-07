@@ -28,7 +28,7 @@ Revisit only if:
 
 ### Desktop App Tracking
 
-Keep the Electron desktop companion custom through the closed beta.
+Keep the desktop companion custom through the closed beta.
 
 Why:
 
@@ -142,7 +142,7 @@ Consider OneSignal, Knock, or Novu later if you need:
 
 ### Desktop Packaging And Updates
 
-Consider Electron Builder, Electron Forge, or a hosted update service after beta.
+The companion builds with PyInstaller today (see `tether-desktop-py/packaging/`), which produces a working bundle but no auto-update and no signing. Before non-technical users install it, budget for an Apple Developer account for notarization and an Authenticode certificate for Windows, and consider a hosted update service.
 
 This is not exactly an API replacement, but it will matter before non-technical users install the desktop companion.
 

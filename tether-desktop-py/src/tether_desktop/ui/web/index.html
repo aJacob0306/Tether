@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tether Desktop</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <p class="overline">Tether Desktop</p>
+        <h1 class="display" id="hero-title">Discover installed apps</h1>
+        <p class="subhead" id="hero-subtitle">
+          Sign in with your Tether account to register this computer and upload installed
+          apps for mobile tether setup.
+        </p>
+      </header>
+
+      <!-- Signed out -->
+      <form class="card hidden" id="sign-in-card" novalidate>
+        <label class="field">
+          <span class="field__label">Email</span>
+          <input
+            class="field__input"
+            id="email"
+            type="email"
+            autocomplete="username"
+            placeholder="you@example.com"
+            spellcheck="false"
+          />
+        </label>
+        <label class="field">
+          <span class="field__label">Password</span>
+          <input
+            class="field__input"
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+          />
+        </label>
+        <button class="button button--primary" id="sign-in-button" type="submit">
+          <span class="button__spinner"></span>
+          <span class="button__label">Sign in and sync apps</span>
+        </button>
+      </form>
+
+      <!-- Signed in -->
+      <section class="card hidden" id="signed-in-card">
+        <div class="identity">
+          <div class="avatar" id="avatar">?</div>
+          <div class="identity__text">
+            <p class="body-strong identity__email selectable" id="signed-in-email"></p>
+            <p class="caption" id="device-name"></p>
+          </div>
+        </div>
+        <div style="margin-top: var(--space-lg)">
+          <button class="button button--secondary" id="sync-button" type="button">
+            <span class="button__spinner"></span>
+            <span class="button__label">Refresh detected apps</span>
+          </button>
+          <button class="button button--danger" id="sign-out-button" type="button">
+            <span class="button__spinner"></span>
+            <span class="button__label">Sign out</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card__header">
+          <p class="overline">Active app tracking</p>
+          <span class="pill pill--offline" id="tracking-pill">
+            <span class="pill__dot"></span>
+            <span class="pill__label">Offline</span>
+          </span>
+        </div>
+        <p class="status-text" id="tracking-status">
+          Sign in to start tracking allowlisted apps.
+        </p>
+        <div class="tracking__target hidden" id="tracking-target">
+          <img class="tracking__icon" id="tracking-icon" alt="" />
+          <p class="body-strong" id="tracking-target-name"></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card__header">
+          <p class="overline">Discovery status</p>
+          <span class="pill hidden" id="discovery-pill">
+            <span class="pill__label" id="discovery-count"></span>
+          </span>
+        </div>
+        <p class="status-text" id="status">Checking session…</p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
